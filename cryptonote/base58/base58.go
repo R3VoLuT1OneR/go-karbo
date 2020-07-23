@@ -18,10 +18,9 @@
 package base58
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
-	"math/big"
-	"reflect"
 
 	"github.com/r3volut1oner/go-karbo/cryptonote/hash"
 )
@@ -39,8 +38,6 @@ const (
 var (
 	blockSizes        = []int{0, -1, 1, 2, -1, 3, 4, 5, -1, 6, 7, 8}
 	encodedBlockSizes = []int{0, 2, 3, 5, 6, 7, 9, 10, 11}
-	bigRadix          = big.NewInt(58)
-	bigZero           = big.NewInt(0)
 
 	alphabet       = []byte("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 	alphabetRevert = map[rune]uint64{
@@ -157,7 +154,7 @@ func DecodeAddr(addr string) (tag uint64, data []byte, err error) {
 	checksum := decoded[checksumStart:]
 	ddata := decoded[:checksumStart]
 
-	if !reflect.DeepEqual(checksum, hash.Digest(ddata)[:checksumSize]) {
+	if !bytes.Equal(checksum, hash.Keccak(ddata)[:checksumSize]) {
 		err = fmt.Errorf("Invalid checksum")
 		return
 	}
@@ -230,7 +227,7 @@ func EncodeAddr(tag uint64, data []byte) string {
 
 	buf = append([]byte{}, vbuf[:vlen]...)
 	buf = append(buf, data...)
-	buf = append(buf, hash.Digest(buf)[:checksumSize]...)
+	buf = append(buf, hash.Keccak(buf)[:checksumSize]...)
 
 	return encode(buf)
 }
