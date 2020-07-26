@@ -3,6 +3,7 @@ package keys
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"io"
 
 	ed "github.com/r3volut1oner/go-karbo/crypto/edwards25519"
@@ -22,12 +23,15 @@ type PublicKey struct {
 
 // Key is any type of key
 type Key interface {
+	// Hex represention of the key
 	Hex() string
+	// Byte slice
+	Byte() []byte
 }
 
 // Public key from private
 func (k *PrivateKey) Public() *PublicKey {
-	if k.p != nil {
+	if k.p == nil {
 		var private [32]byte = k.b
 		var public [32]byte
 
@@ -51,6 +55,20 @@ func (k *PublicKey) Hex() string {
 	return hex.EncodeToString(k.b[:])
 }
 
+// Bytes represention of key
+func (k *PublicKey) Bytes() (b []byte) {
+	b = k.b[:32]
+
+	return
+}
+
+// Bytes represention of key
+func (k *PrivateKey) Bytes() (b []byte) {
+	b = k.b[:32]
+
+	return
+}
+
 // PrivateFromHex private key from string
 func PrivateFromHex(s string) (p PrivateKey, err error) {
 	p.b, err = keyFromHex(s)
@@ -58,6 +76,33 @@ func PrivateFromHex(s string) (p PrivateKey, err error) {
 	if err != nil {
 		return
 	}
+
+	return
+}
+
+// PublicFromHex public key from string
+func PublicFromHex(s string) (p PublicKey, err error) {
+	p.b, err = keyFromHex(s)
+
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+// PublicFromBytes generates public key from bytes sinquence
+func PublicFromBytes(b []byte) (k PublicKey, err error) {
+	if len(b) != 32 {
+		err = errors.New("Key must be 32 bytes length")
+
+		return
+	}
+
+	var key [32]byte
+	copy(key[:], b)
+
+	k = PublicKey{key}
 
 	return
 }
