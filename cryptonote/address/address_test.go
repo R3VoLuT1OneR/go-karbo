@@ -33,8 +33,8 @@ func TestAddressFromString(t *testing.T) {
 
 func TestAddressGenerate(t *testing.T) {
 	for _, td := range testAddressCompilation {
-		publicSpendKey, _ := keys.PublicFromHex(td.publicSpendKey)
-		publicViewKey, _ := keys.PublicFromHex(td.publicViewKey)
+		publicSpendKey, _ := keys.FromHex(td.publicSpendKey)
+		publicViewKey, _ := keys.FromHex(td.publicViewKey)
 		address := Generate(uint64(111), publicSpendKey, publicViewKey)
 
 		assert.Equal(t, td.address, address.Base58)

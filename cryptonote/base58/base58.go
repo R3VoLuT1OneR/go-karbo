@@ -22,7 +22,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/r3volut1oner/go-karbo/cryptonote/hash"
+	"github.com/r3volut1oner/go-karbo/crypto/hash"
 )
 
 const (

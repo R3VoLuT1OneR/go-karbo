@@ -22,25 +22,19 @@ var testingData = []*struct {
 
 func TestGenerateViewFromSpend(t *testing.T) {
 	for _, td := range testingData {
-		spendKey, err := PrivateFromHex(td.spendKey)
-		assert.Nil(t, err)
+		spendKey, _ := FromHex(td.spendKey)
+		viewKey, _ := FromHex(td.viewKey)
 
-		viewKey, err := PrivateFromHex(td.viewKey)
-		assert.Nil(t, err)
-
-		assert.Equal(t, viewKey, GenerateViewFromSpend(&spendKey))
+		assert.Equal(t, viewKey, ViewFromSpend(spendKey))
 	}
 }
 
 func TestGetPublicKey(t *testing.T) {
 	for _, td := range testingData {
-		spendKey, err := PrivateFromHex(td.spendKey)
-		assert.Nil(t, err)
+		spendKey, _ := FromHex(td.spendKey)
+		viewKey, _ := FromHex(td.viewKey)
 
-		viewKey, err := PrivateFromHex(td.viewKey)
-		assert.Nil(t, err)
-
-		assert.Equal(t, td.publicSpendKey, (*spendKey.Public()).Hex())
-		assert.Equal(t, td.publicViewKey, (*viewKey.Public()).Hex())
+		assert.Equal(t, td.publicSpendKey, PublicFromPrivate(spendKey).Hex())
+		assert.Equal(t, td.publicViewKey, PublicFromPrivate(viewKey).Hex())
 	}
 }

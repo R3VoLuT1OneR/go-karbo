@@ -7,152 +7,94 @@ import (
 	"io"
 
 	ed "github.com/r3volut1oner/go-karbo/crypto/edwards25519"
-	"github.com/r3volut1oner/go-karbo/cryptonote/hash"
+	"github.com/r3volut1oner/go-karbo/crypto/hash"
 )
-
-// PrivateKey represents cryptonote private key
-type PrivateKey struct {
-	b [32]byte   // private key bytes
-	p *PublicKey // public key cache
-}
-
-// PublicKey represents cryptonote public key
-type PublicKey struct {
-	b [32]byte
-}
 
 // Key is any type of key
 type Key interface {
 	// Hex represention of the key
 	Hex() string
+
 	// Byte slice
-	Byte() []byte
+	Bytes() *[32]byte
 }
 
-// Public key from private
-func (k *PrivateKey) Public() *PublicKey {
-	if k.p == nil {
-		var private [32]byte = k.b
-		var public [32]byte
-
-		var point ed.ExtendedGroupElement
-		ed.GeScalarMultBase(&point, &private)
-		point.ToBytes(&public)
-
-		k.p = &PublicKey{public}
-	}
-
-	return k.p
+type key struct {
+	b [32]byte // private key bytes
 }
 
 // Hex represention of key
-func (k *PrivateKey) Hex() string {
-	return hex.EncodeToString(k.b[:])
-}
-
-// Hex represention of key
-func (k *PublicKey) Hex() string {
+func (k *key) Hex() string {
 	return hex.EncodeToString(k.b[:])
 }
 
 // Bytes represention of key
-func (k *PublicKey) Bytes() (b []byte) {
-	b = k.b[:32]
-
-	return
+func (k *key) Bytes() *[32]byte {
+	return &k.b
 }
 
-// Bytes represention of key
-func (k *PrivateKey) Bytes() (b []byte) {
-	b = k.b[:32]
-
-	return
-}
-
-// PrivateFromHex private key from string
-func PrivateFromHex(s string) (p PrivateKey, err error) {
-	p.b, err = keyFromHex(s)
-
+// FromHex returns key from hex string
+func FromHex(s string) (Key, error) {
+	decoded, err := hex.DecodeString(s)
 	if err != nil {
-		return
+		return nil, err
+	}
+	return FromBytes(&decoded)
+}
+
+// FromBytes key from bytes
+func FromBytes(b *[]byte) (Key, error) {
+	if len(*b) != 32 {
+		return nil, errors.New("Key must be 32 bytes length")
 	}
 
-	return
+	var keyBytes [32]byte
+	copy(keyBytes[:], *b)
+	return FromArray(&keyBytes), nil
 }
 
-// PublicFromHex public key from string
-func PublicFromHex(s string) (p PublicKey, err error) {
-	p.b, err = keyFromHex(s)
+// FromArray generate from array
+func FromArray(b *[32]byte) Key {
+	return &key{*b}
+}
 
-	if err != nil {
-		return
+// PublicFromPrivate key from private
+func PublicFromPrivate(k Key) Key {
+	if !ed.ScCheck(k.Bytes()) {
+		panic(errors.New("Provided key is not on curve"))
 	}
 
-	return
+	var point ed.ExtendedGroupElement
+	ed.GeScalarMultBase(&point, k.Bytes())
+
+	var keyBytes [32]byte
+	point.ToBytes(&keyBytes)
+	return FromArray(&keyBytes)
 }
 
-// PublicFromBytes generates public key from bytes sinquence
-func PublicFromBytes(b []byte) (k PublicKey, err error) {
-	if len(b) != 32 {
-		err = errors.New("Key must be 32 bytes length")
+// ViewFromSpend returns deterministic private key
+func ViewFromSpend(k Key) Key {
+	khash := hash.Keccak(k.Bytes()[:])
+	key := FromArray(reduceBytesToPoint(&khash))
 
-		return
-	}
-
-	var key [32]byte
-	copy(key[:], b)
-
-	k = PublicKey{key}
-
-	return
+	return key
 }
 
-// GenerateViewFromSpend returns deterministic private key
-func GenerateViewFromSpend(k *PrivateKey) PrivateKey {
-	var khash = hash.Keccak(k.b[:32])
-
-	var pkey PrivateKey
-	copy(pkey.b[:], khash[:32])
-
-	return GenerateDeterministicKey(&pkey)
-}
-
-// GenerateDeterministicKey compute determenistic key from private key
-func GenerateDeterministicKey(k *PrivateKey) (new PrivateKey) {
-	var in [64]byte
-	copy(in[:], k.b[:])
-	ed.ScReduce(&new.b, &in)
-
-	return
-}
-
-// GenerateSpendKey cryptonote keys
-func GenerateSpendKey() (k PrivateKey, err error) {
+// GenerateKey cryptonote keys
+func GenerateKey() (Key, error) {
 	randomBytes := make([]byte, 64)
-	if _, err = io.ReadFull(rand.Reader, randomBytes); err != nil {
-		return
+	if _, err := io.ReadFull(rand.Reader, randomBytes); err != nil {
+		return nil, err
 	}
 
-	var seed [64]byte
-	var key [32]byte
-
-	copy(seed[:], randomBytes[:64])
-	ed.ScReduce(&key, &seed)
-
-	k.b = key
-
-	return
+	return FromArray(reduceBytesToPoint(&randomBytes)), nil
 }
 
-func keyFromHex(s string) (k [32]byte, err error) {
-	var bkey []byte
+func reduceBytesToPoint(b *[]byte) *[32]byte {
+	var in [64]byte
+	var out [32]byte
 
-	bkey, err = hex.DecodeString(s)
-	if err != nil {
-		return
-	}
-
-	copy(k[:], bkey[:32])
-
-	return
+	copy(in[:], *b)
+	ed.ScReduce(&out, &in)
+	return &out
 }
