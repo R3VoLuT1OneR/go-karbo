@@ -24,7 +24,7 @@ func FromString(s string) (a Address, err error) {
 	}
 
 	if len(data) != 64 {
-		err = errors.New("Encoded data has wrong length")
+		err = errors.New("encoded data has wrong length")
 
 		return
 	}
@@ -49,7 +49,7 @@ func Generate(tag uint64, sk, vk keys.Key) (a Address) {
 	a.SpendPublicKey = sk
 	a.ViewPublicKey = vk
 
-	b := []byte{}
+	var b []byte
 	b = append(b, sk.Bytes()[:]...)
 	b = append(b, vk.Bytes()[:]...)
 
