@@ -2,7 +2,7 @@ package binary
 
 import (
 	"github.com/r3volut1oner/go-karbo/config"
-	"github.com/r3volut1oner/go-karbo/cryptonote/block"
+	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"github.com/r3volut1oner/go-karbo/p2p"
 	"github.com/stretchr/testify/assert"
 	"math"
@@ -64,17 +64,19 @@ func TestDecodeHandShakeRequest(t *testing.T) {
 
 	err := Unmarshal(encodedHandshakeReq, &decoded)
 
+	mainnet := config.MainNet()
+
 	assert.Nil(t, err)
 
-	assert.Equal(t, config.MainNetParams().NetworkID, decoded.NodeData.NetworkID)
-	assert.Equal(t, uint8(0x4), decoded.NodeData.Version)
+	assert.Equal(t, mainnet.NetworkID, decoded.NodeData.NetworkID)
+	assert.Equal(t, mainnet.P2PCurrentVersion, decoded.NodeData.Version)
 	assert.Equal(t, uint64(0x310), decoded.NodeData.PeerId)
 	assert.Equal(t, uint64(0x60061472), decoded.NodeData.LocalTime)
 	assert.Equal(t, uint32(0x7e5b), decoded.NodeData.MyPort)
 
 	assert.Equal(t, uint32(0x8cce7), decoded.PayloadData.CurrentHeight)
 	assert.Equal(t,
-		block.HashBytes{
+		cryptonote.Hash{
 			0x8, 0xc, 0xe5, 0xe5, 0x96, 0x77, 0x9, 0x4b,
 			0xde, 0xda, 0xae, 0xea, 0xe9, 0xa8, 0x96, 0x4b,
 			0x60, 0xfe, 0xf7, 0x26, 0x70, 0x9c, 0xf6, 0x5f,
@@ -82,6 +84,11 @@ func TestDecodeHandShakeRequest(t *testing.T) {
 		},
 		decoded.PayloadData.TopBlockHash,
 	)
+
+	encoded, err := Marshal(decoded)
+
+	assert.Nil(t, err)
+	assert.Equal(t, encodedHandshakeReq, encoded)
 }
 
 var encodedHandshakeRes = []byte{
@@ -791,7 +798,7 @@ func TestDecodeHandshakeResponse(t *testing.T) {
 	}
 
 	assert.Nil(t, err)
-	assert.Equal(t, config.MainNetParams().NetworkID, decoded.NodeData.NetworkID)
+	assert.Equal(t, config.MainNet().NetworkID, decoded.NodeData.NetworkID)
 	assert.Equal(t, 252, len(decoded.Peers))
 	assert.Equal(t, uint64(0x6e6b855a2c75f543), decoded.Peers[34].ID)
 	assert.Equal(t, uint32(0x56928fb9), decoded.Peers[104].Address.IP)

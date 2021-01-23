@@ -47,6 +47,10 @@ type bucketHead struct {
 	ProtocolVersion uint32
 }
 
+func NewLevinProtocol(conn net.Conn) LevinProtocol {
+	return LevinProtocol{conn}
+}
+
 func (protocol *LevinProtocol) WriteCommand(command uint32, payload []byte, HaveToReturnData bool) (n int, err error) {
 	return protocol.send(command, payload, HaveToReturnData, LevinPacketRequest, 0)
 }
@@ -57,7 +61,6 @@ func (protocol *LevinProtocol) WriteReply(command uint32, payload []byte, return
 
 func (protocol *LevinProtocol) ReadCommand() (*LevinCommand, error) {
 	var headBytes [LevinHeadSize]byte
-	var payload []byte
 	var head bucketHead
 
 	if _, err := io.ReadFull(protocol.Conn, headBytes[:]); err != nil {
@@ -73,6 +76,8 @@ func (protocol *LevinProtocol) ReadCommand() (*LevinCommand, error) {
 	if head.BodySize > uint64(LevinMaxPacketSize) {
 		return nil, errors.New("levin packet size is too big")
 	}
+
+	payload := make([]byte, head.BodySize)
 
 	if _, err := io.ReadFull(protocol.Conn, payload); err != nil {
 		return nil, err

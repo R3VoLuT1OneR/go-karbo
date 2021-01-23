@@ -15,13 +15,12 @@
 // block is the smallest number of digits sufficient to encode every
 // block of the same size. For example, 8-byte blocks are encoded using
 // 11 characters.
-package base58
+package cryptonote
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-
 	"github.com/r3volut1oner/go-karbo/crypto/hash"
 )
 
@@ -154,7 +153,7 @@ func DecodeAddr(addr string) (tag uint64, data []byte, err error) {
 	checksum := decoded[checksumStart:]
 	ddata := decoded[:checksumStart]
 
-	if !bytes.Equal(checksum, hash.Keccak(ddata)[:checksumSize]) {
+	if !bytes.Equal(checksum, hash.Keccak(&ddata)[:checksumSize]) {
 		err = fmt.Errorf("Invalid checksum")
 		return
 	}
@@ -227,7 +226,7 @@ func EncodeAddr(tag uint64, data []byte) string {
 
 	buf = append([]byte{}, vbuf[:vlen]...)
 	buf = append(buf, data...)
-	buf = append(buf, hash.Keccak(buf)[:checksumSize]...)
+	buf = append(buf, hash.Keccak(&buf)[:checksumSize]...)
 
 	return encode(buf)
 }

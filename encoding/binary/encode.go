@@ -1,6 +1,7 @@
 package binary
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -159,8 +160,28 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 				return err
 			}
 		}
+	case reflect.Array:
+		if err := e.writePrefix(typeBinary, name); err != nil {
+			return err
+		}
+
+		var arrayBytesBuf bytes.Buffer
+		if err := binary.Write(&arrayBytesBuf, binary.LittleEndian, v); err != nil {
+			return err
+		}
+		arrayBytes := arrayBytesBuf.Bytes()
+
+		if err := e.writeVarInt(uint64(len(arrayBytes))); err != nil {
+			return err
+		}
+
+		if _, err := e.w.Write(arrayBytes); err != nil {
+			return err
+		}
 	default:
-		return errors.New(fmt.Sprintf("unsuported type: %T", v))
+		panic(fmt.Sprintf("unsuported kind: %s", kind))
+		//panic("unsupported type")
+		//return errors.New(fmt.Sprintf("unsuported type: %T", v))
 	}
 
 	return nil

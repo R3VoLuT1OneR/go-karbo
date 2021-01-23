@@ -3,16 +3,31 @@ package config
 import "github.com/google/uuid"
 
 const (
+	TransactionVersion1 byte = 1
+
 	P2PVersion1 uint8 = 1
 	P2PVersion2 uint8 = 2
 	P2PVersion3 uint8 = 3
 	P2PVersion4 uint8 = 4
+
+	BlockMajorVersion1 byte = 1
+	BlockMajorVersion2 byte = 2
+	BlockMajorVersion3 byte = 3
+	BlockMajorVersion4 byte = 4
+	BlockMajorVersion5 byte = 5
+
+	BlockMinorVersion0 byte = 0
+	BlockMinorVersion1 byte = 1
 )
 
-// Params represents network params
-type Params struct {
+// Network represents network params
+type Network struct {
 
 	NetworkID uuid.UUID
+
+	Name string
+	Ticker string
+	GenesisCoinbaseTxHex string
 
 	// PublicAddressBase58Prefix address prefix
 	PublicAddressBase58Prefix uint64
@@ -23,8 +38,10 @@ type Params struct {
 
 	KeysSignatureBase58Prefix uint64
 
-	P2PMinimumVersion uint8
-	P2PCurrentVersion uint8
+	P2PMinimumVersion byte
+	P2PCurrentVersion byte
+
+	CurrentTransactionVersion byte
 
 	// SeadNodes List of basic sead nodes
 	SeedNodes []string

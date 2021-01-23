@@ -2,7 +2,10 @@ package p2p
 
 import (
 	"github.com/google/uuid"
-	"github.com/r3volut1oner/go-karbo/cryptonote/block"
+	"github.com/r3volut1oner/go-karbo/config"
+	"github.com/r3volut1oner/go-karbo/cryptonote"
+	"math/rand"
+	"time"
 )
 
 const HandshakeCommandID = CommandPoolBase + 1
@@ -15,9 +18,9 @@ type BasicNodeData struct {
 	MyPort uint32 `binary:"my_port"`
 }
 
-type PayloadData struct {
-	CurrentHeight uint32 `binary:"current_height"`
-	TopBlockHash block.HashBytes `binary:"top_id"`
+type SyncData struct {
+	CurrentHeight uint32          `binary:"current_height"`
+	TopBlockHash  cryptonote.Hash `binary:"top_id"`
 }
 
 type NetworkAddress struct {
@@ -32,13 +35,44 @@ type Peer struct {
 }
 
 type HandshakeRequest struct {
-	NodeData BasicNodeData `binary:"node_data"`
-	PayloadData PayloadData `binary:"payload_data"`
+	NodeData    BasicNodeData `binary:"node_data"`
+	PayloadData SyncData      `binary:"payload_data"`
 }
 
 type HandshakeResponse struct {
-	NodeData BasicNodeData `binary:"node_data"`
-	PayloadData PayloadData `binary:"payload_data"`
-	Peers []Peer `binary:"local_peerlist"`
+	NodeData    BasicNodeData `binary:"node_data"`
+	PayloadData SyncData      `binary:"payload_data"`
+	Peers       []Peer        `binary:"local_peerlist"`
 }
 
+func NewHandshakeRequest(network *config.Network) (*HandshakeRequest, error) {
+	// TODO: Top block must be fetched from blockchain storage
+	topBlock, err := cryptonote.GenerateGenesisBlock(network)
+	if err != nil {
+		return nil, err
+	}
+
+	hash, err := topBlock.Hash()
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Must be fetched from blockchain storage
+	height := 0
+
+	r := HandshakeRequest{
+		NodeData: BasicNodeData{
+			NetworkID: network.NetworkID,
+			Version: network.P2PCurrentVersion,
+			LocalTime: uint64(time.Now().Unix()),
+			PeerId: uint64(rand.Int63()),
+			MyPort: 32347,
+		},
+		PayloadData: SyncData{
+			CurrentHeight: uint32(height),
+			TopBlockHash: *hash,
+		},
+	}
+
+	return &r, nil
+}

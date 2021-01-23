@@ -1,23 +1,20 @@
-package address
+package cryptonote
 
 import (
 	"errors"
-
-	"github.com/r3volut1oner/go-karbo/cryptonote/base58"
-	"github.com/r3volut1oner/go-karbo/cryptonote/keys"
 )
 
 // Address represents cryptonote address
 type Address struct {
 	Tag            uint64
-	SpendPublicKey keys.Key
-	ViewPublicKey  keys.Key
+	SpendPublicKey Key
+	ViewPublicKey  Key
 	Base58         string
 }
 
 // FromString provides address from string
 func FromString(s string) (a Address, err error) {
-	tag, data, err := base58.DecodeAddr(s)
+	tag, data, err := DecodeAddr(s)
 
 	if err != nil {
 		return
@@ -36,15 +33,15 @@ func FromString(s string) (a Address, err error) {
 	copy(viewPublicKeyData[:], data[32:64])
 
 	a.Base58 = s
-	a.SpendPublicKey = keys.FromArray(&spendPublicKeyData)
-	a.ViewPublicKey = keys.FromArray(&viewPublicKeyData)
+	a.SpendPublicKey = KeyFromArray(&spendPublicKeyData)
+	a.ViewPublicKey = KeyFromArray(&viewPublicKeyData)
 	a.Tag = tag
 
 	return
 }
 
 // Generate from tag and public keys
-func Generate(tag uint64, sk, vk keys.Key) (a Address) {
+func Generate(tag uint64, sk, vk Key) (a Address) {
 	a.Tag = tag
 	a.SpendPublicKey = sk
 	a.ViewPublicKey = vk
@@ -53,7 +50,7 @@ func Generate(tag uint64, sk, vk keys.Key) (a Address) {
 	b = append(b, sk.Bytes()[:]...)
 	b = append(b, vk.Bytes()[:]...)
 
-	a.Base58 = base58.EncodeAddr(tag, b)
+	a.Base58 = EncodeAddr(tag, b)
 
 	return
 }

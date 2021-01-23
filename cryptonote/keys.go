@@ -1,18 +1,18 @@
-package keys
+package cryptonote
 
 import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"github.com/r3volut1oner/go-karbo/crypto/hash"
 	"io"
 
 	ed "github.com/r3volut1oner/go-karbo/crypto/edwards25519"
-	"github.com/r3volut1oner/go-karbo/crypto/hash"
 )
 
 // Key is any type of key
 type Key interface {
-	// Hex represention of the key
+	// Hex representation of the key
 	Hex() string
 
 	// Byte slice
@@ -23,7 +23,7 @@ type key struct {
 	b [32]byte // private key bytes
 }
 
-// Hex represention of key
+// Hex representation of key
 func (k *key) Hex() string {
 	return hex.EncodeToString(k.b[:])
 }
@@ -33,28 +33,28 @@ func (k *key) Bytes() *[32]byte {
 	return &k.b
 }
 
-// FromHex returns key from hex string
-func FromHex(s string) (Key, error) {
+// KeyFromHex returns key from hex string
+func KeyFromHex(s string) (Key, error) {
 	decoded, err := hex.DecodeString(s)
 	if err != nil {
 		return nil, err
 	}
-	return FromBytes(&decoded)
+	return KeyFromBytes(&decoded)
 }
 
-// FromBytes key from bytes
-func FromBytes(b *[]byte) (Key, error) {
+// KeyFromBytes key from bytes
+func KeyFromBytes(b *[]byte) (Key, error) {
 	if len(*b) != 32 {
 		return nil, errors.New("Key must be 32 bytes length")
 	}
 
 	var keyBytes [32]byte
 	copy(keyBytes[:], *b)
-	return FromArray(&keyBytes), nil
+	return KeyFromArray(&keyBytes), nil
 }
 
-// FromArray generate from array
-func FromArray(b *[32]byte) Key {
+// KeyFromArray generate from array
+func KeyFromArray(b *[32]byte) Key {
 	return &key{*b}
 }
 
@@ -69,13 +69,14 @@ func PublicFromPrivate(k Key) Key {
 
 	var keyBytes [32]byte
 	point.ToBytes(&keyBytes)
-	return FromArray(&keyBytes)
+	return KeyFromArray(&keyBytes)
 }
 
 // ViewFromSpend returns deterministic private key
 func ViewFromSpend(k Key) Key {
-	khash := hash.Keccak(k.Bytes()[:])
-	key := FromArray(reduceBytesToPoint(&khash))
+	kbytes := k.Bytes()[:]
+	khash := hash.Keccak(&kbytes)
+	key := KeyFromArray(reduceBytesToPoint(&khash))
 
 	return key
 }
@@ -87,7 +88,7 @@ func GenerateKey() (Key, error) {
 		return nil, err
 	}
 
-	return FromArray(reduceBytesToPoint(&randomBytes)), nil
+	return KeyFromArray(reduceBytesToPoint(&randomBytes)), nil
 }
 
 func reduceBytesToPoint(b *[]byte) *[32]byte {

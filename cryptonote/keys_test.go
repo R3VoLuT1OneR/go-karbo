@@ -1,4 +1,4 @@
-package keys
+package cryptonote
 
 import (
 	"testing"
@@ -22,8 +22,8 @@ var testingData = []*struct {
 
 func TestGenerateViewFromSpend(t *testing.T) {
 	for _, td := range testingData {
-		spendKey, _ := FromHex(td.spendKey)
-		viewKey, _ := FromHex(td.viewKey)
+		spendKey, _ := KeyFromHex(td.spendKey)
+		viewKey, _ := KeyFromHex(td.viewKey)
 
 		assert.Equal(t, viewKey, ViewFromSpend(spendKey))
 	}
@@ -31,8 +31,8 @@ func TestGenerateViewFromSpend(t *testing.T) {
 
 func TestGetPublicKey(t *testing.T) {
 	for _, td := range testingData {
-		spendKey, _ := FromHex(td.spendKey)
-		viewKey, _ := FromHex(td.viewKey)
+		spendKey, _ := KeyFromHex(td.spendKey)
+		viewKey, _ := KeyFromHex(td.viewKey)
 
 		assert.Equal(t, td.publicSpendKey, PublicFromPrivate(spendKey).Hex())
 		assert.Equal(t, td.publicViewKey, PublicFromPrivate(viewKey).Hex())

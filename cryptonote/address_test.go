@@ -1,9 +1,8 @@
-package address
+package cryptonote
 
 import (
 	"testing"
 
-	"github.com/r3volut1oner/go-karbo/cryptonote/keys"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -33,8 +32,8 @@ func TestAddressFromString(t *testing.T) {
 
 func TestAddressGenerate(t *testing.T) {
 	for _, td := range testAddressCompilation {
-		publicSpendKey, _ := keys.FromHex(td.publicSpendKey)
-		publicViewKey, _ := keys.FromHex(td.publicViewKey)
+		publicSpendKey, _ := KeyFromHex(td.publicSpendKey)
+		publicViewKey, _ := KeyFromHex(td.publicViewKey)
 		address := Generate(uint64(111), publicSpendKey, publicViewKey)
 
 		assert.Equal(t, td.address, address.Base58)

@@ -17,7 +17,7 @@ import (
 	"github.com/r3volut1oner/go-karbo/config"
 )
 
-var mainnet = config.MainNetParams()
+var mainnet = config.MainNet()
 
 func SeedHostToMultiAddr(addr string) (ma.Multiaddr, error) {
 	netAddr, err := net.ResolveTCPAddr("tcp", addr)
