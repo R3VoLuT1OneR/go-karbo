@@ -14,62 +14,102 @@ func (h *Hash) FromBytes(b *[]byte) {
 	copy(h[:32], hashed[:32])
 }
 
-func HashFromBytes(b *[]byte) Hash {
-	hashed := hash.Keccak(b)
+func HashFromBytes(b []byte) Hash {
+	hashed := hash.Keccak(&b)
 	var h Hash
 	copy(h[:32], hashed[:32])
 	return h
 }
 
-// TODO: Add tests from C++ implementation. tests/Hash/tests-tree.txt
 func (hl hashList) merkleRootHash() (*Hash, error)  {
-	var h Hash
-	listLen := len(hl)
-
-	switch listLen {
+	switch len(hl) {
 	case 0:
 		return nil, errors.New("at least 1 hash must be provided")
 	case 1:
 		singleHash := hl[0]
 		return singleHash, nil
 	case 2:
-		doubleHash := hl[0][:]
-		doubleHash = append(doubleHash, hl[1][:]...)
-		h.FromBytes(&doubleHash)
+		h := HashFromBytes(append(hl[0][:], hl[1][:]...))
+		return &h, nil
 	default:
-		hashedHashListLen := listLen / 2
-		hashedHashList := hashList{}
-
-		for i := 0; i < hashedHashListLen; i++ {
-			thl := hashList{hl[i*2], hl[i*2+1]}
-
-			th, err := thl.merkleRootHash()
-			if err != nil {
-				return nil, err
-			}
-
-			hashedHashList = append(hashedHashList, th)
-		}
-
-		if listLen > hashedHashListLen * 2 {
-			thl := hashList{hl[listLen - 2], hl[listLen-1]}
-			lh, err := thl.merkleRootHash()
-			if err != nil {
-				return nil, err
-			}
-
-			thl = hashList{hl[listLen - 3], lh}
-			th, err := thl.merkleRootHash()
-			if err != nil {
-				return nil, err
-			}
-
-			hashedHashList[len(hashedHashList) - 1] = th
+		cnt := 2 // Largest power of two
+		for cnt << 1 < len(hl) {
+			cnt <<= 1
 		}
 
 
-		return hashedHashList.merkleRootHash()
+		readyNum := (2 * cnt) - len(hl)
+		tempList := make(hashList, readyNum)
+		copy(tempList, hl[:readyNum])
+
+		for i, j := readyNum, readyNum; j < cnt; i, j = i+2, j+1 {
+			h := HashFromBytes(append(hl[i][:], hl[i+1][:]...))
+			tempList = append(tempList, &h)
+		}
+
+		for len(tempList) > 1 {
+			newTempList := hashList{}
+			for i := 0; i < len(tempList); i += 2 {
+				h := HashFromBytes(append(tempList[i][:], tempList[i+1][:]...))
+				newTempList = append(newTempList, &h)
+			}
+			tempList = newTempList
+		}
+
+		return tempList[0], nil
+		//hashedHashList := hashList{}
+		//
+		//for i := 0; i < (listLen - (listLen % 2)); i += 2 {
+		//	thl := hashList{hl[i], hl[i+1]}
+		//
+		//	if listLen - i == 3 {
+		//		lastHL := hashList{hl[listLen-2], hl[listLen-1]}
+		//		lastH, err := lastHL.merkleRootHash()
+		//		if err != nil {
+		//			return nil, err
+		//		}
+		//
+		//		thl[1] = lastH
+		//	}
+		//
+		//	th, err := thl.merkleRootHash()
+		//	if err != nil {
+		//		return nil, err
+		//	}
+		//
+		//	hashedHashList = append(hashedHashList, th)
+		//}
+
+		//hashedHashListLen := listLen / 2
+		//hashedHashList := hashList{}
+		//
+		//for i := 0; i < hashedHashListLen; i++ {
+		//	thl := hashList{hl[i*2], hl[i*2+1]}
+		//
+		//	th, err := thl.merkleRootHash()
+		//	if err != nil {
+		//		return nil, err
+		//	}
+		//
+		//	hashedHashList = append(hashedHashList, th)
+		//}
+		//
+		//if listLen > hashedHashListLen * 2 {
+		//	thl := hashList{hl[listLen - 2], hl[listLen-1]}
+		//	lh, err := thl.merkleRootHash()
+		//	if err != nil {
+		//		return nil, err
+		//	}
+		//
+		//	thl = hashList{hl[listLen - 3], lh}
+		//	th, err := thl.merkleRootHash()
+		//	if err != nil {
+		//		return nil, err
+		//	}
+		//
+		//	hashedHashList[len(hashedHashList) - 1] = th
+		//}
+		//
+		//return hashedHashList.merkleRootHash()
 	}
-
-	return &h, nil
 }
