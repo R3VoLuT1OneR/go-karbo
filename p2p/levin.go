@@ -47,10 +47,6 @@ type bucketHead struct {
 	ProtocolVersion uint32
 }
 
-func NewLevinProtocol(conn net.Conn) LevinProtocol {
-	return LevinProtocol{conn}
-}
-
 func (protocol *LevinProtocol) WriteCommand(command uint32, payload []byte, HaveToReturnData bool) (n int, err error) {
 	return protocol.send(command, payload, HaveToReturnData, LevinPacketRequest, 0)
 }

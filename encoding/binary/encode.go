@@ -45,7 +45,7 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 			return err
 		}
 
-		if _, err := e.w.Write([]byte{v.(uint8)}); err != nil {
+		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
 			return err
 		}
 	case reflect.Uint16:
@@ -53,9 +53,7 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 			return err
 		}
 
-		b := make([]byte, 2)
-		binary.LittleEndian.PutUint16(b, v.(uint16))
-		if _, err := e.w.Write(b); err != nil {
+		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
 			return err
 		}
 	case reflect.Uint32:
@@ -63,9 +61,7 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 			return err
 		}
 
-		b := make([]byte, 4)
-		binary.LittleEndian.PutUint32(b, v.(uint32))
-		if _, err := e.w.Write(b); err != nil {
+		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
 			return err
 		}
 	case reflect.Uint64:
@@ -73,9 +69,7 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 			return err
 		}
 
-		b := make([]byte, 8)
-		binary.LittleEndian.PutUint64(b, v.(uint64))
-		if _, err := e.w.Write(b); err != nil {
+		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
 			return err
 		}
 	case reflect.Int8:
@@ -83,7 +77,7 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 			return err
 		}
 
-		if _, err := e.w.Write([]byte{uint8(v.(int8))}); err != nil {
+		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
 			return err
 		}
 	case reflect.Int16:
@@ -91,9 +85,7 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 			return err
 		}
 
-		b := make([]byte, 2)
-		binary.LittleEndian.PutUint16(b, uint16(v.(int16)))
-		if _, err := e.w.Write(b); err != nil {
+		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
 			return err
 		}
 	case reflect.Int32:
@@ -101,9 +93,7 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 			return err
 		}
 
-		b := make([]byte, 4)
-		binary.LittleEndian.PutUint32(b, uint32(v.(int32)))
-		if _, err := e.w.Write(b); err != nil {
+		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
 			return err
 		}
 	case reflect.Int64:
@@ -111,9 +101,7 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 			return err
 		}
 
-		b := make([]byte, 8)
-		binary.LittleEndian.PutUint64(b, uint64(v.(int64)))
-		if _, err := e.w.Write(b); err != nil {
+		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
 			return err
 		}
 	case reflect.Float64:
@@ -121,9 +109,7 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 			return err
 		}
 
-		b := make([]byte, 8)
-		binary.LittleEndian.PutUint64(b, math.Float64bits(v.(float64)))
-		if _, err := e.w.Write(b); err != nil {
+		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
 			return err
 		}
 	case reflect.String:

@@ -5,8 +5,12 @@ import (
 	"context"
 	"fmt"
 	p2pcrypto "github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-peerstore/pstoremem"
+	stream "github.com/libp2p/go-libp2p-transport-upgrader"
+	configp2p "github.com/libp2p/go-libp2p/config"
+	"github.com/libp2p/go-tcp-transport"
 	"net"
+	"time"
 
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -19,33 +23,34 @@ import (
 
 var mainnet = config.MainNet()
 
-func SeedHostToMultiAddr(addr string) (ma.Multiaddr, error) {
+func SeedHostToMultiAddr(addr string) (peerstore.ID, ma.Multiaddr, error) {
 	netAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	multAddr, err := manet.FromNetAddr(netAddr)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	_, SeedKey, err := p2pcrypto.GenerateKeyPair(p2pcrypto.Ed25519, -1)
 	if err != nil {
-		panic(err)
+		return "", nil, err
 	}
 
 	SeedId, err := peerstore.IDFromPublicKey(SeedKey)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	multAddrSeedId, err := ma.NewMultiaddr(fmt.Sprintf("/p2p/%s", SeedId));
-	if err != nil {
-		return nil, err
-	}
+	//multAddrSeedId, err := ma.NewMultiaddr(fmt.Sprintf("/p2p/%s", SeedId))
+	//if err != nil {
+	//	return nil, err
+	//}
 
-	return multAddr.Encapsulate(multAddrSeedId), nil
+	//return SeedId, multAddr.Encapsulate(multAddrSeedId), nil
+	return SeedId, multAddr, nil
 }
 
 
@@ -69,6 +74,10 @@ func readData(rw *bufio.ReadWriter) {
 	}
 }
 
+func writeData(rw *bufio.ReadWriter) {
+	fmt.Println("write ebat")
+}
+
 func main() {
 
 	// create a background context (i.e. one that never cancels)
@@ -76,16 +85,43 @@ func main() {
 
 	// start a libp2p srv that listens on TCP port 2000 on the IPv4
 	// loopback interface
-	srv, err := libp2p.New(ctx,
-		libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"),
-		libp2p.Ping(false),
+	//srv, err := libp2p.New(ctx,
+	//	libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/37427"),
+	//	libp2p.Ping(false),
+	//	libp2p.NoSecurity,
+	//)
+	srv, err := libp2p.NewWithoutDefaults(ctx,
+		libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/37427"),
+		libp2p.Peerstore(pstoremem.NewPeerstore()),
+		func (cfg *libp2p.Config) error {
+			return libp2p.RandomIdentity(cfg)
+		},
+		func (cfg *libp2p.Config) error {
+			cfg.Insecure = true
+			//tptc, err := configp2p.TransportConstructor(tcp.NewTCPTransport(nil))
+			tptc, err := configp2p.TransportConstructor(func(upgrader *stream.Upgrader) *tcp.TcpTransport {
+				return &tcp.TcpTransport{
+					Upgrader: upgrader,
+					ConnectTimeout: tcp.DefaultConnectTimeout,
+					DisableReuseport: true,
+				}
+			})
+
+			if err != nil {
+				return err
+			}
+
+			cfg.Transports = append(cfg.Transports, tptc)
+
+			return nil
+		},
 	)
 
 	if err != nil {
 		panic(err)
 	}
 
-	// Peer ID
+	// Peer PeerId
 	peerInfo := peerstore.AddrInfo{
 		ID:    srv.ID(),
 		Addrs: srv.Addrs(),
@@ -95,51 +131,65 @@ func main() {
 	fmt.Println("libp2p srv address:", addrs[0])
 
 	// print the srv's listening addresses
-	fmt.Println("Listen addresses:", srv.Addrs())
+	//fmt.Println("Listen addresses:", srv.Addrs())
 
-	var seeds []ma.Multiaddr
+	//var seeds []ma.Multiaddr
+	//
+	//for i := 0; i < len(mainnet.SeedNodes); i++ {
+	//	seedHost := mainnet.SeedNodes[i]
+	//
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//
+	//	srv.Peerstore().AddAddr(seedMultiAddr)
+	//	seeds = append(seeds, seedMultiAddr)
+	//}
 
-	for i := 0; i < len(mainnet.SeedNodes); i++ {
-		seedHost := mainnet.SeedNodes[i]
-		seedMultiAddr, err := SeedHostToMultiAddr(seedHost)
+	//fmt.Println("Seeds", seeds)
 
+	//srv.SetStreamHandler("/karbo/0.0.1", func(stream network.Stream) {
+	//	rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
+	//
+	//	fmt.Println("stream handler")
+	//	go readData(rw)
+	//	go writeData(rw)
+	//})
+
+	//for i := 0; i < len(seeds); i++ {
+	for _, addr := range mainnet.SeedNodes {
+		//addr := seeds[i]
+		//fmt.Println("AddrInfoFromP2pAddr", addr)
+
+		peerID, seedMultiAddr, err := SeedHostToMultiAddr(addr)
 		if err != nil {
 			panic(err)
 		}
 
-		seeds = append(seeds, seedMultiAddr)
-	}
+		//peer, err := peerstore.AddrInfoFromP2pAddr(seeds[i])
+		//if err != nil {
+		//	panic(err)
+		//}
 
-	fmt.Println("Seeds", seeds)
+		srv.Peerstore().AddAddr(peerID, seedMultiAddr, realpeerstore.PermanentAddrTTL)
 
-	srv.SetStreamHandler("/karbo/0.0.1", func(stream network.Stream) {
-		rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
-
-		go readData(rw)
-	})
-
-	for i := 0; i < len(seeds); i++ {
-		addr := seeds[i]
-
-		fmt.Println("AddrInfoFromP2pAddr", addr)
-
-		peer, err := peerstore.AddrInfoFromP2pAddr(seeds[i])
+		fmt.Println("connection to", peerID, seedMultiAddr)
+		stream, err := srv.NewStream(context.Background(), peerID)
 		if err != nil {
 			panic(err)
 		}
 
-		srv.Peerstore().AddAddr(peer.ID, peer.Addrs[0], realpeerstore.PermanentAddrTTL)
-
-		fmt.Println("Peer", peer)
-
-		if err := srv.Connect(ctx, *peer); err != nil {
-			panic(err)
-		}
+		fmt.Println("stream", stream)
+		//srv.Connect(ctx, *peer)
+		//ctx2 := context.Background()
+		//if err := srv.Connect(ctx2, peerID); err != nil {
+		//	panic(err)
+		//}
 	}
 
 	// Configure ping protocol
 	//pingService := &ping.PingService{Host: srv}
-	//srv.SetStreamHandler(ping.ID, pingService.PingHandler)
+	//srv.SetStreamHandler(ping.PeerId, pingService.PingHandler)
 	//
 	//if len(os.Args) > 1 {
 	//	addr, err := multiaddr.NewMultiaddr(os.Args[1])
@@ -154,7 +204,7 @@ func main() {
 	//		panic(err)
 	//	}
 	//	fmt.Println("Sending 5 ping request to", addr)
-	//	ch := pingService.Ping(ctx, peer.ID)
+	//	ch := pingService.Ping(ctx, peer.PeerId)
 	//	for i := 0; i < 5; i++ {
 	//		res := <-ch
 	//		fmt.Println("go ping response!", "RTT:", res.RTT)
@@ -167,6 +217,7 @@ func main() {
 	//	fmt.Println("Received signal, shutting down...")
 	//}
 
+	time.Sleep(10)
 	// shut the srv down
 	if err := srv.Close(); err != nil {
 		panic(err)

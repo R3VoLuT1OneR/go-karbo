@@ -8,14 +8,12 @@ import (
 	"time"
 )
 
-const HandshakeCommandID = CommandPoolBase + 1
-
 type BasicNodeData struct {
-	NetworkID uuid.UUID `binary:"network_id"`
-	Version uint8 `binary:"version"`
-	PeerId uint64 `binary:"peer_id"`
-	LocalTime uint64 `binary:"local_time"`
-	MyPort uint32 `binary:"my_port"`
+	NetworkID 	uuid.UUID 	`binary:"network_id"`
+	Version 	uint8 		`binary:"version"`
+	PeerId 		uint64 		`binary:"peer_id"`
+	LocalTime 	uint64 		`binary:"local_time"`
+	MyPort 		uint32 		`binary:"my_port"`
 }
 
 type SyncData struct {
@@ -28,7 +26,7 @@ type NetworkAddress struct {
 	Port uint32
 }
 
-type Peer struct {
+type PeerEntry struct {
 	Address NetworkAddress
 	ID uint64
 	LastSeen uint64
@@ -42,7 +40,7 @@ type HandshakeRequest struct {
 type HandshakeResponse struct {
 	NodeData    BasicNodeData `binary:"node_data"`
 	PayloadData SyncData      `binary:"payload_data"`
-	Peers       []Peer        `binary:"local_peerlist"`
+	Peers       []PeerEntry   `binary:"local_peerlist"`
 }
 
 func NewHandshakeRequest(network *config.Network) (*HandshakeRequest, error) {

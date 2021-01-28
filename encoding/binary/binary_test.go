@@ -800,7 +800,7 @@ func TestDecodeHandshakeResponse(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, config.MainNet().NetworkID, decoded.NodeData.NetworkID)
 	assert.Equal(t, 252, len(decoded.Peers))
-	assert.Equal(t, uint64(0x6e6b855a2c75f543), decoded.Peers[34].ID)
+	assert.Equal(t, uint64(0x6e6b855a2c75f543), decoded.Peers[34].PeerId)
 	assert.Equal(t, uint32(0x56928fb9), decoded.Peers[104].Address.IP)
 	assert.Equal(t, 32347, int(decoded.Peers[104].Address.Port))
 }

@@ -5,6 +5,6 @@ const PingCommandID = CommandPoolBase + 3
 type PingRequest struct {}
 
 type PingResponse struct {
-	status string
-	peer_id uint64
+	Status string `binary:"status"`
+	PeerID uint64 `binary:"peer_id"`
 }
