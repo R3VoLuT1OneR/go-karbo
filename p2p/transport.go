@@ -31,7 +31,7 @@ package p2p
 //		}
 //	}
 //
-//	var d manet.Dialer
+//	var d manet.dialer
 //	conn, err := d.DialContext(ctx, raddr)
 //	if err != nil {
 //		return nil, err
@@ -44,7 +44,7 @@ package p2p
 //
 //}
 //
-//func (t *P2PTransport) Listen(laddr ma.Multiaddr) (transport.Listener, error) {
+//func (t *P2PTransport) Listen(laddr ma.Multiaddr) (transport.listener, error) {
 //
 //}
 //

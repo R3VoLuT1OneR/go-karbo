@@ -1,87 +1,83 @@
 package p2p
 
 import (
+	"context"
 	"errors"
-	"fmt"
-	"github.com/r3volut1oner/go-karbo/encoding/binary"
+	"math/rand"
+)
+
+const (
+	PeerStateBeforeHandshake byte = iota
+	PeerStateSynchronizing
+	PeerStateIdle
+	PeerStateNormal
+	PeerStateSyncRequired
+	PeerStatePoolSyncRequired
+	PeerStateShutdown
 )
 
 type Peer struct {
-	PeerID uint64
-	Protocol *LevinProtocol
+	ID uint64
+
+	Version byte
+	Height uint32
+	State byte
+
+	protocol *LevinProtocol
+}
+
+func NewPeerFromTCPAddress(ctx context.Context, h *Host, addr string) (*Peer, error) {
+	conn, err := h.dialer.DialContext(ctx, "tcp4", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	peer := Peer{
+		ID:       rand.Uint64(),
+		State:    PeerStateBeforeHandshake,
+		protocol: &LevinProtocol{conn},
+	}
+
+	return &peer, nil
 }
 
 func (p *Peer) Handshake(h *Host) (*HandshakeResponse, error) {
+	if p.State != PeerStateBeforeHandshake {
+		return nil, errors.New("state is not before handshake")
+	}
+
 	req, err := NewHandshakeRequest(h.Config.Network)
 	if err != nil {
 		return nil, err
 	}
 
-	reqBytes, err := binary.Marshal(*req)
-	if err != nil {
+	var res HandshakeResponse
+	if err := p.protocol.Invoke(CommandHandshake, *req, &res); err != nil {
 		return nil, err
 	}
 
-	if _, err := p.Protocol.WriteCommand(CommandHandshake, reqBytes, true); err != nil {
-		return nil, err
-	}
-
-	command, err := p.Protocol.ReadCommand()
-	if err != nil {
-		return nil, err
-	}
-
-	if command.Command != CommandHandshake {
-		return nil, errors.New(fmt.Sprintf("wrong command response code: %v", command.Command))
-	}
-
-	if !command.IsResponse {
-		return nil, errors.New("not response returned")
-	}
-
-	var rsp HandshakeResponse
-	if err := binary.Unmarshal(command.Payload, &rsp); err != nil {
-		return nil, err
-	}
-
-	if h.Config.Network.NetworkID != rsp.NodeData.NetworkID {
+	if h.Config.Network.NetworkID != res.NodeData.NetworkID {
 		return nil, errors.New("wrong network id received")
 	}
 
-	if h.Config.Network.P2PMinimumVersion < rsp.NodeData.Version {
+	if h.Config.Network.P2PMinimumVersion < res.NodeData.Version {
 		return nil, errors.New("node data version not match minimal")
 	}
 
-	p.PeerID = rsp.NodeData.PeerId
+	p.State = PeerStateSynchronizing
+	p.Version = res.NodeData.Version
+	p.Height = res.PayloadData.CurrentHeight
 
-	return &rsp, nil
+	return &res, nil
 }
 
-func (p *Peer) Ping(h *Host) (*PingResponse, error) {
+func (p *Peer) Ping() (*PingResponse, error) {
 	req := PingRequest{}
+	res := PingResponse{}
 
-	reqBytes, err := binary.Marshal(req)
-	if err != nil {
+	if err := p.protocol.Invoke(CommandPing, req, &res); err != nil {
 		return nil, err
 	}
 
-	if _, err := p.Protocol.WriteCommand(CommandPing, reqBytes, true); err != nil {
-		return nil, err
-	}
-
-	command, err := p.Protocol.ReadCommand()
-	if err != nil {
-		return nil, err
-	}
-
-	//if command.Command != CommandPing {
-	//	return nil, errors.New(fmt.Sprintf("wrong ping command response code: %v", command.Command))
-	//}
-
-	var rsp PingResponse
-	if err := binary.Unmarshal(command.Payload, &rsp); err != nil {
-		return nil, err
-	}
-
-	return &rsp, nil
+	return &res, nil
 }

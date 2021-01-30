@@ -70,7 +70,7 @@ func TestDecodeHandShakeRequest(t *testing.T) {
 
 	assert.Equal(t, mainnet.NetworkID, decoded.NodeData.NetworkID)
 	assert.Equal(t, mainnet.P2PCurrentVersion, decoded.NodeData.Version)
-	assert.Equal(t, uint64(0x310), decoded.NodeData.PeerId)
+	assert.Equal(t, uint64(0x310), decoded.NodeData.PeerID)
 	assert.Equal(t, uint64(0x60061472), decoded.NodeData.LocalTime)
 	assert.Equal(t, uint32(0x7e5b), decoded.NodeData.MyPort)
 

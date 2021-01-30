@@ -3,6 +3,8 @@ package p2p
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
+	p2pbinary "github.com/r3volut1oner/go-karbo/encoding/binary"
 	"io"
 	"net"
 )
@@ -47,19 +49,64 @@ type bucketHead struct {
 	ProtocolVersion uint32
 }
 
-func (protocol *LevinProtocol) WriteCommand(command uint32, payload []byte, HaveToReturnData bool) (n int, err error) {
-	return protocol.send(command, payload, HaveToReturnData, LevinPacketRequest, 0)
+// Invoke sends command and waits for response
+func (p *LevinProtocol) Invoke(command uint32, req, res interface{}) error {
+	reqBytes, err := p2pbinary.Marshal(req)
+	if err != nil {
+		return err
+	}
+
+	if _, err := p.WriteCommand(command, reqBytes, true, 0); err != nil {
+		return err
+	}
+
+	commandRsp, err := p.ReadCommand()
+	if err != nil {
+		return err
+	}
+
+	if command != commandRsp.Command {
+		return errors.New(fmt.Sprintf("wrong command response code: %v", commandRsp.Command))
+	}
+
+	if !commandRsp.IsResponse {
+		return errors.New("not response returned")
+	}
+
+	if err := p2pbinary.Unmarshal(commandRsp.Payload, res); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (protocol *LevinProtocol) WriteReply(command uint32, payload []byte, returnCode int32) (n int, err error){
-	return protocol.send(command, payload, false, LevinPacketResponse, returnCode)
+func (p *LevinProtocol) Reply(command uint32, reply interface{}, returnCode int32) error {
+	b, err := p2pbinary.Marshal(reply)
+	if err != nil {
+		return err
+	}
+
+	if _, err := p.WriteCommand(command, b, false, returnCode); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (protocol *LevinProtocol) ReadCommand() (*LevinCommand, error) {
+func (p *LevinProtocol) WriteCommand(
+	command uint32,
+	payload []byte,
+	HaveToReturnData bool,
+	ReturnCode int32,
+) (n int, err error) {
+	return p.send(command, payload, HaveToReturnData, LevinPacketRequest, ReturnCode)
+}
+
+func (p *LevinProtocol) ReadCommand() (*LevinCommand, error) {
 	var headBytes [LevinHeadSize]byte
 	var head bucketHead
 
-	if _, err := io.ReadFull(protocol.Conn, headBytes[:]); err != nil {
+	if _, err := io.ReadFull(p.Conn, headBytes[:]); err != nil {
 		return nil, err
 	}
 
@@ -75,7 +122,7 @@ func (protocol *LevinProtocol) ReadCommand() (*LevinCommand, error) {
 
 	payload := make([]byte, head.BodySize)
 
-	if _, err := io.ReadFull(protocol.Conn, payload); err != nil {
+	if _, err := io.ReadFull(p.Conn, payload); err != nil {
 		return nil, err
 	}
 
@@ -87,7 +134,7 @@ func (protocol *LevinProtocol) ReadCommand() (*LevinCommand, error) {
 	}, nil
 }
 
-func (protocol *LevinProtocol) send(
+func (p *LevinProtocol) send(
 	command uint32,
 	payload []byte,
 	haveToReturnData bool,
@@ -111,7 +158,7 @@ func (protocol *LevinProtocol) send(
 	copy(message[0:33], headBytes[:])
 	copy(message[33:], payload)
 
-	return protocol.Conn.Write(message)
+	return p.Conn.Write(message)
 }
 
 func (head *bucketHead) encode() [LevinHeadSize]byte {

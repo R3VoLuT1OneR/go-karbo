@@ -121,7 +121,7 @@ func main() {
 		panic(err)
 	}
 
-	// Peer PeerId
+	// Peer PeerID
 	peerInfo := peerstore.AddrInfo{
 		ID:    srv.ID(),
 		Addrs: srv.Addrs(),
@@ -189,7 +189,7 @@ func main() {
 
 	// Configure ping protocol
 	//pingService := &ping.PingService{Host: srv}
-	//srv.SetStreamHandler(ping.PeerId, pingService.PingHandler)
+	//srv.SetStreamHandler(ping.PeerID, pingService.PingHandler)
 	//
 	//if len(os.Args) > 1 {
 	//	addr, err := multiaddr.NewMultiaddr(os.Args[1])
@@ -204,7 +204,7 @@ func main() {
 	//		panic(err)
 	//	}
 	//	fmt.Println("Sending 5 ping request to", addr)
-	//	ch := pingService.Ping(ctx, peer.PeerId)
+	//	ch := pingService.Ping(ctx, peer.PeerID)
 	//	for i := 0; i < 5; i++ {
 	//		res := <-ch
 	//		fmt.Println("go ping response!", "RTT:", res.RTT)

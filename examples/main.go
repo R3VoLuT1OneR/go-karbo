@@ -5,33 +5,48 @@ import (
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
 	"github.com/r3volut1oner/go-karbo/p2p"
-	"net"
+	log "github.com/sirupsen/logrus"
+	"os"
+	"os/signal"
 )
 
-var mainnet = config.MainNet()
-
 func main()  {
+	mainnet := config.MainNet()
 
-	ctx := context.Background()
-
-	ba, err := net.ResolveTCPAddr("tcp4", "127.0.0.1:32347")
-	if err != nil {
-		panic(err)
-	}
-
+	ctx := interruptListener()
 	cfg := p2p.HostConfig{
-		BindAddr: ba,
+		BindAddr: "127.0.0.1:32347",
 		Network: mainnet,
 	}
 
-	host := p2p.NewHost(cfg)
+	logger := log.New()
+	logger.Out = os.Stdout
 
-	err = host.Start(ctx)
-	if err != nil {
+	host := p2p.NewHost(cfg, logger)
+
+	fmt.Println("Server started.")
+
+	if err := host.Run(ctx); err != nil {
 		panic(err)
 	}
 
-	fmt.Println("host", host)
+	fmt.Println("Server stopped.")
 }
 
+func interruptListener() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
 
+	go func() {
+		interruptChannel := make(chan os.Signal, 1)
+		signal.Notify(interruptChannel, os.Interrupt)
+
+		select {
+		case sig := <-interruptChannel:
+			fmt.Printf("Received signal (%s). Shutting down...\n", sig)
+		}
+
+		cancel()
+	}()
+
+	return ctx
+}

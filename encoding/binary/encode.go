@@ -164,6 +164,14 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 		if _, err := e.w.Write(arrayBytes); err != nil {
 			return err
 		}
+	case reflect.Slice:
+		if err := e.writePrefix(typeBinary, name); err != nil {
+			return err
+		}
+
+		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
+			return err
+		}
 	default:
 		panic(fmt.Sprintf("unsuported kind: %s", kind))
 		//panic("unsupported type")
