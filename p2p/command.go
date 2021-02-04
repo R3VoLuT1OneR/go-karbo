@@ -109,8 +109,14 @@ func newTimedSyncResponse(n *config.Network) (*TimedSyncResponse, error) {
 		return nil, err
 	}
 
+	// TODO: Provide list of peers entry
 	var peers []PeerEntry
-	return &TimedSyncResponse{uint64(time.Now().Unix()), *syncData, peers}, nil
+
+	return &TimedSyncResponse{
+		LocalTime: uint64(time.Now().Unix()),
+		PayloadData: *syncData,
+		Peers: peers,
+	}, nil
 }
 
 func prepareSyncData(network *config.Network) (*SyncData, error) {

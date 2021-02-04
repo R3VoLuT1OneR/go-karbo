@@ -3,6 +3,7 @@ package p2p
 import (
 	"errors"
 	"fmt"
+	"github.com/r3volut1oner/go-karbo/config"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"github.com/r3volut1oner/go-karbo/encoding/binary"
 	"reflect"
@@ -35,10 +36,15 @@ type NotificationNewLiteBlock struct {
 	Hop                     uint32 `binary:"hop"`
 }
 
+type NotificationRequestChain struct {
+	Blocks []cryptonote.Hash `binary:"block_ids"`
+}
+
 var mapNotificationID = map[uint32]interface{}{
 	NotificationNewTransactionsID: 	NotificationNewTransactions{},
 	NotificationTxPoolID: 			NotificationTxPool{},
 	NotificationNewLiteBlockID: 	NotificationNewLiteBlock{},
+	NotificationRequestChainID: 	NotificationRequestChain{},
 }
 
 func parseNotification(lc *LevinCommand) (interface{}, error) {
@@ -53,4 +59,18 @@ func parseNotification(lc *LevinCommand) (interface{}, error) {
 	}
 
 	return nil, errors.New(fmt.Sprintf("unknown command ID: %d", lc.Command))
+}
+
+func newRequestChain(n *config.Network) (*NotificationRequestChain, error) {
+	topBlock, err := cryptonote.GenerateGenesisBlock(n)
+	if err != nil {
+		return nil, err
+	}
+
+	hash, err := topBlock.Hash()
+	if err != nil {
+		return nil, err
+	}
+
+	return &NotificationRequestChain{[]cryptonote.Hash{*hash}}, nil
 }

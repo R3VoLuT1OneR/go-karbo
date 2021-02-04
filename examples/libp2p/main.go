@@ -87,7 +87,7 @@ func main() {
 	// loopback interface
 	//srv, err := libp2p.New(ctx,
 	//	libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/37427"),
-	//	libp2p.Ping(false),
+	//	libp2p.ping(false),
 	//	libp2p.NoSecurity,
 	//)
 	srv, err := libp2p.NewWithoutDefaults(ctx,
@@ -204,7 +204,7 @@ func main() {
 	//		panic(err)
 	//	}
 	//	fmt.Println("Sending 5 ping request to", addr)
-	//	ch := pingService.Ping(ctx, peer.PeerID)
+	//	ch := pingService.ping(ctx, peer.PeerID)
 	//	for i := 0; i < 5; i++ {
 	//		res := <-ch
 	//		fmt.Println("go ping response!", "RTT:", res.RTT)

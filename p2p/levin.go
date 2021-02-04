@@ -80,6 +80,19 @@ func (p *LevinProtocol) Invoke(command uint32, req, res interface{}) error {
 	return nil
 }
 
+func (p *LevinProtocol) Notify(command uint32, notification interface{}) error {
+	reqBytes, err := p2pbinary.Marshal(notification)
+	if err != nil {
+		return err
+	}
+
+	if _, err := p.WriteCommand(command, reqBytes, false, 0); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (p *LevinProtocol) Reply(command uint32, reply interface{}, returnCode int32) error {
 	b, err := p2pbinary.Marshal(reply)
 	if err != nil {

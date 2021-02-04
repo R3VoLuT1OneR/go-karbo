@@ -21,6 +21,7 @@ func main()  {
 
 	logger := log.New()
 	logger.Out = os.Stdout
+	logger.Level = log.DebugLevel
 
 	host := p2p.NewHost(cfg, logger)
 

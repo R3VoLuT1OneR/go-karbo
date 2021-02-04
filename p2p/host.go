@@ -59,6 +59,7 @@ func (h *Host) defaults() {
 	if h.dialer == nil {
 		h.dialer = &net.Dialer{
 			//LocalAddr: h.Config.BindAddr,
+			Timeout: time.Second,
 		}
 	}
 }
@@ -76,7 +77,7 @@ func (h *Host) Run(ctx context.Context) error {
 	}
 
 	h.listener = listener
-	h.logger.Infof("listening on %s", listener.Addr())
+	h.logger.Debugf("listening on %s", listener.Addr())
 
 	h.wg.Add(1)
 	go h.startListen(ctx)
@@ -87,7 +88,6 @@ func (h *Host) Run(ctx context.Context) error {
 }
 
 func (h *Host) startListen(ctx context.Context) {
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -132,14 +132,14 @@ func (h *Host) syncWithAddr(c context.Context, addr string) {
 		return
 	}
 
-	handshake, err := peer.Handshake(h)
+	handshake, err := peer.handshake(h)
 	if err != nil {
 		h.logger.Error("failed handshake")
 		cancel()
 		return
 	}
 
-	h.logger.Infof("[#%16x] handshake established with", peer.ID)
+	h.logger.Debugf("[#%16x] handshake established with", peer.ID)
 
 	if err := h.ps.Add(peer); err != nil {
 		h.logger.Error("failed to add peer to the store")
@@ -160,11 +160,18 @@ func (h *Host) syncWithAddr(c context.Context, addr string) {
 		h.logger.Warnf("peer remove failed: %s", err)
 	}
 
-	h.logger.Infof("[%16x] sync closed", peer.ID)
+	h.logger.Debugf("[%16x] sync closed", peer.ID)
 }
 
 func (h *Host) listenNotifications(ctx context.Context, p *Peer) {
 	for {
+		if p.state == PeerStateSyncRequired {
+			p.state = PeerStateSynchronizing
+			if err := p.requestChain(h); err != nil {
+				h.logger.Errorf("failed to send request chain: %s", err)
+			}
+		}
+
 		select {
 		case <-time.After(time.Second):
 		case <-ctx.Done():
@@ -178,6 +185,7 @@ func (h *Host) listenNotifications(ctx context.Context, p *Peer) {
 
 		if err != nil {
 			log.Errorf("error on read command: %s", err)
+			continue
 		}
 
 		if cmd.IsNotify {
@@ -217,8 +225,9 @@ func (h *Host) handleCommand(p *Peer, cmd *LevinCommand) error {
 
 	switch c.(type) {
 	case TimedSyncRequest:
-		// TODO: Handle sync request
-		request := c.(TimedSyncRequest)
+		if err := p.processSyncData(c.(TimedSyncRequest).PayloadData, false); err != nil {
+			return err
+		}
 
 		res, err := newTimedSyncResponse(h.Config.Network)
 		if err != nil {
@@ -229,7 +238,7 @@ func (h *Host) handleCommand(p *Peer, cmd *LevinCommand) error {
 			return err
 		}
 
-		h.logger.Infof("sync request %d", request.PayloadData.CurrentHeight)
+		h.logger.Infof("sync request %d", c.(TimedSyncRequest).PayloadData.CurrentHeight)
 	default:
 		h.logger.Errorf("received unknown commands type: %s", reflect.TypeOf(c))
 	}
