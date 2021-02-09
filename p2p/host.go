@@ -2,6 +2,8 @@ package p2p
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
 	"io"
 	"math/rand"
@@ -27,7 +29,7 @@ type Host struct {
 	dialer   *net.Dialer
 	logger   *log.Logger
 	wg       *sync.WaitGroup
-	ps 		 *PeerStore
+	ps 		 *peerStore
 
 	listener *net.TCPListener
 }
@@ -80,14 +82,17 @@ func (h *Host) Run(ctx context.Context) error {
 	h.logger.Debugf("listening on %s", listener.Addr())
 
 	h.wg.Add(1)
-	go h.startListen(ctx)
-	go h.startPeerSync(ctx)
+	go h.runListener(ctx)
+
+	for _, seedAddr := range h.Config.Network.SeedNodes {
+		go h.syncWithAddr(ctx, seedAddr)
+	}
 
 	h.wg.Wait()
 	return nil
 }
 
-func (h *Host) startListen(ctx context.Context) {
+func (h *Host) runListener(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -98,8 +103,9 @@ func (h *Host) startListen(ctx context.Context) {
 			h.wg.Done()
 			return
 		default:
-			_ = h.listener.SetDeadline(time.Now().Add(time.Second))
-			_, err := h.listener.Accept()
+			_ = h.listener.SetDeadline(time.Now().Add(time.Second * 5))
+
+			conn, err := h.listener.Accept()
 			if err != nil {
 				if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 					time.Sleep(time.Second)
@@ -108,17 +114,18 @@ func (h *Host) startListen(ctx context.Context) {
 				h.logger.Errorf("failed to accept connection: %s", err)
 			}
 
-			// TODO: Implement new connections listener
+			go h.handleIncomingConnection(ctx, conn)
 		}
 	}
 }
 
-func (h *Host) startPeerSync(ctx context.Context) {
-	h.logger.Print("sync started")
+func (h *Host) handleIncomingConnection(ctx context.Context, conn net.Conn) {
+	peer := NewPeerFromIncomingConnection(conn)
 
-	for _, seedAddr := range h.Config.Network.SeedNodes {
-		go h.syncWithAddr(ctx, seedAddr)
-	}
+	h.wg.Add(1)
+	defer h.wg.Done()
+
+	h.listenForCommands(ctx, peer)
 }
 
 func (h *Host) syncWithAddr(c context.Context, addr string) {
@@ -132,16 +139,17 @@ func (h *Host) syncWithAddr(c context.Context, addr string) {
 		return
 	}
 
-	handshake, err := peer.handshake(h)
+	//handshake, err := peer.handshake(h)
+	_, err = peer.handshake(h)
 	if err != nil {
 		h.logger.Error("failed handshake")
 		cancel()
 		return
 	}
 
-	h.logger.Debugf("[#%16x] handshake established with", peer.ID)
+	h.logger.Debugf("[#%16x] handshake established", peer.ID)
 
-	if err := h.ps.Add(peer); err != nil {
+	if err := h.ps.toWhite(peer); err != nil {
 		h.logger.Error("failed to add peer to the store")
 		cancel()
 		return
@@ -150,42 +158,43 @@ func (h *Host) syncWithAddr(c context.Context, addr string) {
 	h.wg.Add(1)
 	defer h.wg.Done()
 
-	for _, pe := range handshake.Peers {
-		go h.syncWithAddr(c, pe.Address.String())
-	}
+	//for _, pe := range handshake.Peers {
+	//	go h.syncWithAddr(c, pe.Address.String())
+	//}
 
-	h.listenNotifications(ctx, peer)
+	h.listenForCommands(ctx, peer)
 
-	if err := h.ps.Remove(peer); err != nil {
+	if err := h.ps.toGrey(peer); err != nil {
 		h.logger.Warnf("peer remove failed: %s", err)
 	}
 
 	h.logger.Debugf("[%16x] sync closed", peer.ID)
 }
 
-func (h *Host) listenNotifications(ctx context.Context, p *Peer) {
+func (h *Host) listenForCommands(ctx context.Context, p *Peer) {
 	for {
 		if p.state == PeerStateSyncRequired {
 			p.state = PeerStateSynchronizing
 			if err := p.requestChain(h); err != nil {
-				h.logger.Errorf("failed to send request chain: %s", err)
+				h.logger.Errorf("failed to write request chain: %s", err)
 			}
 		}
 
 		select {
-		case <-time.After(time.Second):
+		case <-time.After(time.Second * 3):
 		case <-ctx.Done():
 			return
 		}
 
-		cmd, err := p.protocol.ReadCommand()
+		cmd, err := p.protocol.read()
 		if err == io.EOF {
 			continue
 		}
 
 		if err != nil {
 			log.Errorf("error on read command: %s", err)
-			continue
+			_ = h.ps.toGrey(p)
+			break
 		}
 
 		if cmd.IsNotify {
@@ -212,8 +221,9 @@ func (h *Host) handleNotification(cmd *LevinCommand) error {
 	case NotificationTxPool:
 		h.logger.Infof("txs pool: %d", len(n.(NotificationTxPool).Transactions))
 	default:
-		h.logger.Errorf("received unknown notificaiton type: %s", reflect.TypeOf(n))
+		h.logger.Errorf("can't handle notificaiton type: %s", reflect.TypeOf(n))
 	}
+
 	return nil
 }
 
@@ -224,16 +234,40 @@ func (h *Host) handleCommand(p *Peer, cmd *LevinCommand) error {
 	}
 
 	switch c.(type) {
+	case HandshakeRequest:
+		// TODO: Check peer network and rest of the data
+		handshakeRequest := c.(HandshakeRequest)
+		if handshakeRequest.NodeData.NetworkID != h.Config.Network.NetworkID {
+			return errors.New("wrong network on handshake")
+		}
+
+		// TODO: Send ping and make sure we can connect to the peer and add it to the white list.
+		//if err := p.processSyncData(c.(HandshakeRequest).PayloadData, true); err != nil {
+		//	return err
+		//}
+
+		h.logger.Debugf("[%v] handshake received", p.ID)
+
+		rsp, err := NewHandshakeResponse(h)
+		if err != nil {
+			return err
+		}
+
+		if err := p.protocol.Reply(cmd.Command, *rsp, 1); err != nil {
+			return err
+		}
+
 	case TimedSyncRequest:
 		if err := p.processSyncData(c.(TimedSyncRequest).PayloadData, false); err != nil {
 			return err
 		}
 
-		res, err := newTimedSyncResponse(h.Config.Network)
+		res, err := newTimedSyncResponse(h)
 		if err != nil {
 			return err
 		}
 
+		fmt.Println("sync request response", *res)
 		if err := p.protocol.Reply(cmd.Command, *res, 1); err != nil {
 			return err
 		}

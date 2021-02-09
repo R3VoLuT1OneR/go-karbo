@@ -15,7 +15,7 @@ func main()  {
 
 	ctx := interruptListener()
 	cfg := p2p.HostConfig{
-		BindAddr: "127.0.0.1:32347",
+		BindAddr: "127.0.0.1:32447",
 		Network: mainnet,
 	}
 

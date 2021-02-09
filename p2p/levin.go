@@ -56,11 +56,11 @@ func (p *LevinProtocol) Invoke(command uint32, req, res interface{}) error {
 		return err
 	}
 
-	if _, err := p.WriteCommand(command, reqBytes, true, 0); err != nil {
+	if _, err := p.write(command, reqBytes, true, LevinPacketRequest, 0); err != nil {
 		return err
 	}
 
-	commandRsp, err := p.ReadCommand()
+	commandRsp, err := p.read()
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (p *LevinProtocol) Notify(command uint32, notification interface{}) error {
 		return err
 	}
 
-	if _, err := p.WriteCommand(command, reqBytes, false, 0); err != nil {
+	if _, err := p.write(command, reqBytes, false, LevinPacketRequest, 0); err != nil {
 		return err
 	}
 
@@ -99,23 +99,14 @@ func (p *LevinProtocol) Reply(command uint32, reply interface{}, returnCode int3
 		return err
 	}
 
-	if _, err := p.WriteCommand(command, b, false, returnCode); err != nil {
+	if _, err := p.write(command, b, false, LevinPacketResponse, returnCode); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (p *LevinProtocol) WriteCommand(
-	command uint32,
-	payload []byte,
-	HaveToReturnData bool,
-	ReturnCode int32,
-) (n int, err error) {
-	return p.send(command, payload, HaveToReturnData, LevinPacketRequest, ReturnCode)
-}
-
-func (p *LevinProtocol) ReadCommand() (*LevinCommand, error) {
+func (p *LevinProtocol) read() (*LevinCommand, error) {
 	var headBytes [LevinHeadSize]byte
 	var head bucketHead
 
@@ -147,7 +138,7 @@ func (p *LevinProtocol) ReadCommand() (*LevinCommand, error) {
 	}, nil
 }
 
-func (p *LevinProtocol) send(
+func (p *LevinProtocol) write(
 	command uint32,
 	payload []byte,
 	haveToReturnData bool,

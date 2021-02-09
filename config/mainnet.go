@@ -21,16 +21,17 @@ func MainNet() *Network {
 		P2PCurrentVersion: P2PVersion4,
 
 		SeedNodes: []string{
-			"seed1.karbowanec.com:32347",
-			"seed2.karbowanec.com:32347",
-			"seed.karbo.cloud:32347",
-			"seed.karbo.org:32347",
-			"seed.karbo.io:32347",
-			"185.86.78.40:32347",
-			"108.61.198.115:32347",
-			"45.32.232.11:32347",
-			"46.149.182.151:32347",
-			"144.91.94.65:32347",
+			"localhost:32347",
+			//"seed1.karbowanec.com:32347",
+			//"seed2.karbowanec.com:32347",
+			//"seed.karbo.cloud:32347",
+			//"seed.karbo.org:32347",
+			//"seed.karbo.io:32347",
+			//"185.86.78.40:32347",
+			//"108.61.198.115:32347",
+			//"45.32.232.11:32347",
+			//"46.149.182.151:32347",
+			//"144.91.94.65:32347",
 		},
 	}
 }

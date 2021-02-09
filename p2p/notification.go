@@ -22,6 +22,10 @@ const (
 	NotificationMissingTxsID 			= NotificationBoolBase + 10
 )
 
+type NotificationNewBlock struct {
+
+}
+
 type NotificationNewTransactions struct {
 	Transactions []cryptonote.Hash `binary:"txs"`
 }
@@ -41,6 +45,7 @@ type NotificationRequestChain struct {
 }
 
 var mapNotificationID = map[uint32]interface{}{
+	NotificationNewBlockID: 		NotificationNewBlock{},
 	NotificationNewTransactionsID: 	NotificationNewTransactions{},
 	NotificationTxPoolID: 			NotificationTxPool{},
 	NotificationNewLiteBlockID: 	NotificationNewLiteBlock{},

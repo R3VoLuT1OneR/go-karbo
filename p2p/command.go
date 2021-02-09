@@ -17,7 +17,7 @@ const (
 	CommandPoolBase 			= 1000
 	CommandHandshake 			= CommandPoolBase + 1
 	CommandTimedSync 			= CommandPoolBase + 2
-	CommandPing 				= CommandPoolBase + 2
+	CommandPing 				= CommandPoolBase + 3
 	CommandRequestStatInfo 		= CommandPoolBase + 4
 	CommandRequestNetworkState 	= CommandPoolBase + 5
 	CommandRequestPeerID 		= CommandPoolBase + 6
@@ -51,6 +51,24 @@ type PeerEntry struct {
 	LastSeen uint64
 }
 
+func (pe *PeerEntry) FromPeer(p *Peer) error {
+	IP, err := ipv4.FromNetIP(p.address.IP)
+	if err != nil {
+		return err
+	}
+
+	pe.ID = p.ID
+	pe.Address = NetworkAddress{
+		IP: IP,
+		Port: uint32(p.address.Port),
+	}
+
+	// TODO: Get real last seen
+	pe.LastSeen = uint64(time.Now().Unix())
+
+	return nil
+}
+
 type HandshakeRequest struct {
 	NodeData    BasicNodeData `binary:"node_data"`
 	PayloadData SyncData      `binary:"payload_data"`
@@ -80,46 +98,105 @@ type PingResponse struct {
 }
 
 var mapCommandStructs = map[uint32]interface{}{
+	CommandHandshake: HandshakeRequest{},
 	CommandTimedSync: TimedSyncRequest{},
 }
 
 func NewHandshakeRequest(network *config.Network) (*HandshakeRequest, error) {
-	syncData, err := prepareSyncData(network)
+	syncData, err := newSyncData(network)
+	if err != nil {
+		return nil, err
+	}
+
+	nodeData, err := newBasicNodeData(network)
 	if err != nil {
 		return nil, err
 	}
 
 	r := HandshakeRequest{
-		NodeData: BasicNodeData{
-			NetworkID: network.NetworkID,
-			Version:   network.P2PCurrentVersion,
-			LocalTime: uint64(time.Now().Unix()),
-			PeerID:    uint64(rand.Int63()),
-			MyPort:    32347,
-		},
+		NodeData: nodeData,
 		PayloadData: *syncData,
 	}
 
 	return &r, nil
 }
 
-func newTimedSyncResponse(n *config.Network) (*TimedSyncResponse, error) {
-	syncData, err := prepareSyncData(n)
+func NewHandshakeResponse(h *Host) (*HandshakeResponse, error) {
+	peerList, err := newPeerEntryList(h)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Provide list of peers entry
-	var peers []PeerEntry
+	nodeData, err := newBasicNodeData(h.Config.Network)
+	if err != nil {
+		return nil, err
+	}
 
-	return &TimedSyncResponse{
-		LocalTime: uint64(time.Now().Unix()),
-		PayloadData: *syncData,
-		Peers: peers,
+	payloadData, err := newSyncData(h.Config.Network)
+	if err != nil {
+		return nil, err
+	}
+
+	return &HandshakeResponse{
+		NodeData: nodeData,
+		PayloadData: *payloadData,
+		Peers: peerList,
 	}, nil
 }
 
-func prepareSyncData(network *config.Network) (*SyncData, error) {
+func newTimedSyncResponse(h *Host) (*TimedSyncResponse, error) {
+	syncData, err := newSyncData(h.Config.Network)
+	if err != nil {
+		return nil, err
+	}
+
+	peerList, err := newPeerEntryList(h)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TimedSyncResponse{
+		LocalTime:   uint64(time.Now().Unix()),
+		PayloadData: *syncData,
+		Peers:       peerList,
+	}, nil
+}
+
+func newBasicNodeData(n *config.Network) (BasicNodeData, error) {
+	return BasicNodeData{
+		NetworkID: n.NetworkID,
+		Version:   n.P2PCurrentVersion,
+		LocalTime: uint64(time.Now().Unix()),
+		PeerID:    uint64(rand.Int63()),
+		MyPort:    32347,
+	}, nil
+}
+
+func newPeerEntryList(h *Host) ([]PeerEntry, error) {
+	var peers []PeerEntry
+
+	for _, p := range h.ps.white.peers {
+		var pe PeerEntry
+		if err := pe.FromPeer(p); err != nil {
+			return nil, err
+		}
+
+		peers = append(peers, pe)
+	}
+
+	for _, p := range h.ps.grey.peers {
+		var pe PeerEntry
+		if err := pe.FromPeer(p); err != nil {
+			return nil, err
+		}
+
+		peers = append(peers, pe)
+	}
+
+	return peers, nil
+}
+
+func newSyncData(network *config.Network) (*SyncData, error) {
 	// TODO: Top block must be fetched from blockchain storage
 	topBlock, err := cryptonote.GenerateGenesisBlock(network)
 	if err != nil {

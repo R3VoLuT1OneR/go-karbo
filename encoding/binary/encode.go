@@ -169,7 +169,16 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 			return err
 		}
 
-		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
+		var buf bytes.Buffer
+		if err := binary.Write(&buf, binary.LittleEndian, v); err != nil {
+			return err
+		}
+
+		if err := e.writeVarInt(uint64(buf.Len())); err != nil {
+			return err
+		}
+
+		if _, err := e.w.Write(buf.Bytes()); err != nil {
 			return err
 		}
 	default:
