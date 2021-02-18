@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
+	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"io"
 	"math/rand"
 	"net"
@@ -25,6 +26,7 @@ type HostConfig struct {
 
 type Host struct {
 	Config HostConfig
+	Core   *cryptonote.Core
 
 	dialer   *net.Dialer
 	logger   *log.Logger
@@ -34,11 +36,12 @@ type Host struct {
 	listener *net.TCPListener
 }
 
-func NewHost(cfg HostConfig, logger *log.Logger) Host {
+func NewHost(core *cryptonote.Core, cfg HostConfig, logger *log.Logger) Host {
 	var wg sync.WaitGroup
 
 	h := Host{
 		Config: cfg,
+		Core: core,
 		logger: logger,
 	}
 
@@ -173,11 +176,16 @@ func (h *Host) syncWithAddr(c context.Context, addr string) {
 
 func (h *Host) listenForCommands(ctx context.Context, p *Peer) {
 	for {
-		if p.state == PeerStateSyncRequired {
+		switch p.state {
+		case PeerStateSyncRequired:
 			p.state = PeerStateSynchronizing
 			if err := p.requestChain(h); err != nil {
 				h.logger.Errorf("failed to write request chain: %s", err)
 			}
+
+		case PeerStateShutdown:
+			h.logger.Infof("[%d] shutting down...", p.ID)
+			return
 		}
 
 		select {
@@ -198,8 +206,8 @@ func (h *Host) listenForCommands(ctx context.Context, p *Peer) {
 		}
 
 		if cmd.IsNotify {
-			if err := h.handleNotification(cmd); err != nil {
-				h.logger.Errorf("failed handle notification: %s", err)
+			if err := h.handleNotification(p, cmd); err != nil {
+				h.logger.Errorf("failed to handle notification %d: %s", cmd.Command, err)
 			}
 
 			continue
@@ -211,7 +219,9 @@ func (h *Host) listenForCommands(ctx context.Context, p *Peer) {
 	}
 }
 
-func (h *Host) handleNotification(cmd *LevinCommand) error {
+func (h *Host) handleNotification(p *Peer, cmd *LevinCommand) error {
+	h.logger.Tracef("[%s] handeling notification: %d", p, cmd.Command)
+
 	n, err := parseNotification(cmd)
 	if err != nil {
 		return err
@@ -219,7 +229,52 @@ func (h *Host) handleNotification(cmd *LevinCommand) error {
 
 	switch n.(type) {
 	case NotificationTxPool:
-		h.logger.Infof("txs pool: %d", len(n.(NotificationTxPool).Transactions))
+		notification := n.(NotificationTxPool)
+
+		h.logger.Infof("txs pool: %d", len(notification.Transactions))
+	case NotificationResponseChainEntry:
+		notification := n.(NotificationResponseChainEntry)
+
+		h.logger.Tracef(
+			"response chain entry: %d -> %d (%d)",
+			notification.Start,
+			notification.Total,
+			len(notification.BlockIds),
+		)
+
+		if len(notification.BlockIds) == 0 {
+			p.state = PeerStateShutdown
+			return errors.New(fmt.Sprintf("[%d] received empty blocks in response chain enrty", p.ID))
+		}
+
+		// TODO: Assert first block is known to our blockchain
+
+		p.remoteHeight = notification.Total
+		p.lastResponseHeight = notification.Start + uint32(len(notification.BlockIds) - 1)
+
+		if p.lastResponseHeight > p.remoteHeight {
+			p.state = PeerStateShutdown
+			return errors.New(
+				fmt.Sprintf(
+					"[%s] sent wrong response chain entry, with Total = %d, Start = %d, blocks = %d", p,
+					notification.Start,
+					notification.Total,
+					len(notification.BlockIds),
+				),
+			)
+		}
+
+		allBlockKnown := true
+		for _, bh := range notification.BlockIds {
+			if allBlockKnown && h.Core.HasBlock(&bh) {
+				continue
+			}
+
+			allBlockKnown = false
+			p.neededBlocks = append(p.neededBlocks, bh)
+		}
+
+		return p.requestMissingBlocks(false)
 	default:
 		h.logger.Errorf("can't handle notificaiton type: %s", reflect.TypeOf(n))
 	}
@@ -258,7 +313,8 @@ func (h *Host) handleCommand(p *Peer, cmd *LevinCommand) error {
 		}
 
 	case TimedSyncRequest:
-		if err := p.processSyncData(c.(TimedSyncRequest).PayloadData, false); err != nil {
+		command := c.(TimedSyncRequest)
+		if err := p.processSyncData(command.PayloadData, false); err != nil {
 			return err
 		}
 
@@ -267,12 +323,11 @@ func (h *Host) handleCommand(p *Peer, cmd *LevinCommand) error {
 			return err
 		}
 
-		fmt.Println("sync request response", *res)
 		if err := p.protocol.Reply(cmd.Command, *res, 1); err != nil {
 			return err
 		}
 
-		h.logger.Infof("sync request %d", c.(TimedSyncRequest).PayloadData.CurrentHeight)
+		h.logger.Infof("[%s] sync request %d", p, command.PayloadData.CurrentHeight)
 	default:
 		h.logger.Errorf("received unknown commands type: %s", reflect.TypeOf(c))
 	}

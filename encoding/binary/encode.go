@@ -235,7 +235,7 @@ func (e *Encoder) writeVarInt(i uint64) (err error) {
 		}
 	} else if i <= math.MaxUint16 {
 		var v = (uint16(i) << 2) | rawSizeMarkWord
-		var b []byte
+		b := make([]byte, 2)
 		binary.LittleEndian.PutUint16(b, v)
 
 		if _, err := e.w.Write(b); err != nil {
@@ -243,7 +243,7 @@ func (e *Encoder) writeVarInt(i uint64) (err error) {
 		}
 	} else if i <= math.MaxUint32 {
 		var v = (uint32(i) << 2) | rawSizeMarkDWord
-		var b []byte
+		b := make([]byte, 4)
 		binary.LittleEndian.PutUint32(b, v)
 
 		if _, err := e.w.Write(b); err != nil {
@@ -251,7 +251,7 @@ func (e *Encoder) writeVarInt(i uint64) (err error) {
 		}
 	} else if i <= math.MaxUint64 {
 		var v = (i << 2) | rawSizeMarkInt64
-		var b []byte
+		b := make([]byte, 8)
 		binary.LittleEndian.PutUint64(b, v)
 
 		if _, err := e.w.Write(b); err != nil {

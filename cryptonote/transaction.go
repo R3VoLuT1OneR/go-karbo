@@ -165,7 +165,7 @@ func (tp *TransactionPrefix) deserialize(r io.Reader) error {
 	br := bufio.NewReader(r)
 
 	/**
-	 * Read transaction Version
+	 * Read transaction version
 	 */
 	version, err := binary.ReadUvarint(br)
 	if err != nil {

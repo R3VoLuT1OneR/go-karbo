@@ -27,7 +27,20 @@ type NotificationNewBlock struct {
 }
 
 type NotificationNewTransactions struct {
+	Stem         bool              `binary:"stem"`
 	Transactions []cryptonote.Hash `binary:"txs"`
+}
+
+type NotificationRequestGetObjects struct {
+	Transactions []cryptonote.Hash `binary:"txs"`
+	Blocks       []cryptonote.Hash `binary:"blocks"`
+}
+
+type NotificationResponseGetObjects struct {
+	Transactions 			[]string 			`binary:"txs"`
+	Blocks                  []cryptonote.Block  `binary:"blocks"`
+	MissedIds 				[]cryptonote.Hash 	`binary:"missed_ids"`
+	CurrentBlockchainHeight uint32 				`binary:"current_blockchain_height"`
 }
 
 type NotificationTxPool struct {
@@ -44,12 +57,21 @@ type NotificationRequestChain struct {
 	Blocks []cryptonote.Hash `binary:"block_ids"`
 }
 
+type NotificationResponseChainEntry struct {
+	Start    uint32            `binary:"start_height"`
+	Total    uint32            `binary:"total_height"`
+	BlockIds []cryptonote.Hash `binary:"m_block_ids"`
+}
+
 var mapNotificationID = map[uint32]interface{}{
-	NotificationNewBlockID: 		NotificationNewBlock{},
-	NotificationNewTransactionsID: 	NotificationNewTransactions{},
-	NotificationTxPoolID: 			NotificationTxPool{},
-	NotificationNewLiteBlockID: 	NotificationNewLiteBlock{},
-	NotificationRequestChainID: 	NotificationRequestChain{},
+	NotificationNewBlockID: 			NotificationNewBlock{},
+	NotificationNewTransactionsID: 		NotificationNewTransactions{},
+	NotificationRequestGetObjectsID:    NotificationRequestGetObjects{},
+	NotificationResponseGetObjectsID:   NotificationResponseGetObjects{},
+	NotificationTxPoolID: 				NotificationTxPool{},
+	NotificationNewLiteBlockID: 		NotificationNewLiteBlock{},
+	NotificationRequestChainID: 		NotificationRequestChain{},
+	NotificationResponseChainEntryID: 	NotificationResponseChainEntry{},
 }
 
 func parseNotification(lc *LevinCommand) (interface{}, error) {
@@ -63,7 +85,7 @@ func parseNotification(lc *LevinCommand) (interface{}, error) {
 		return notification.Elem().Interface(), nil
 	}
 
-	return nil, errors.New(fmt.Sprintf("unknown command ID: %d", lc.Command))
+	return nil, errors.New(fmt.Sprintf("unknown notification ID: %d", lc.Command))
 }
 
 func newRequestChain(n *config.Network) (*NotificationRequestChain, error) {

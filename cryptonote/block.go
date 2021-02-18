@@ -27,18 +27,18 @@ type BlockHeader struct {
 	Prev         		Hash
 }
 
-type BlockTemplate struct {
+type Block struct {
 	BlockHeader
 
 	Parent 				ParentBlock
 	Transaction 		Transaction
-	TransactionsHashes 	[]*Hash
+	TransactionsHashes 	[]Hash
 
 	hash *Hash
 	hashTransactions *Hash
 }
 
-func (b *BlockTemplate) Hash() (*Hash, error) {
+func (b *Block) Hash() (*Hash, error) {
 	if b.hash == nil {
 		var allBytesBuffer bytes.Buffer
 
@@ -59,7 +59,7 @@ func (b *BlockTemplate) Hash() (*Hash, error) {
 			return nil, err
 		}
 
-		hl := hashList{baseTransactionHash}
+		hl := HashList{*baseTransactionHash}
 		hl = append(hl, b.TransactionsHashes...)
 
 		mrHash, err := hl.merkleRootHash()
@@ -123,8 +123,8 @@ func (h *BlockHeader) serialize() ([]byte, error) {
 	return serialized.Bytes(), nil
 }
 
-func GenerateGenesisBlock(network *config.Network) (*BlockTemplate, error) {
-	var genesisBlock BlockTemplate
+func GenerateGenesisBlock(network *config.Network) (*Block, error) {
+	var genesisBlock Block
 
 	genesisTransactionBytes, err := hex.DecodeString(network.GenesisCoinbaseTxHex)
 	if err != nil {

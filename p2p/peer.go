@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"math/rand"
 	"net"
 )
@@ -19,15 +20,22 @@ const (
 )
 
 type Peer struct {
+	// TODO: Make sure we generate local peer ID and updating external IDs
 	ID uint64
 
-	Version byte
-	Height  uint32
+	core    *cryptonote.Core
+	version byte
 	state   byte
 
 	address *net.TCPAddr
 
 	protocol *LevinProtocol
+
+	remoteHeight uint32
+	lastResponseHeight uint32
+
+	neededBlocks 	cryptonote.HashList
+	requestedBlocks cryptonote.HashList
 }
 
 func NewPeerFromTCPAddress(ctx context.Context, h *Host, addr string) (*Peer, error) {
@@ -43,6 +51,7 @@ func NewPeerFromTCPAddress(ctx context.Context, h *Host, addr string) (*Peer, er
 
 	peer := Peer{
 		ID:       rand.Uint64(),
+		core: h.Core,
 		protocol: &LevinProtocol{conn},
 		address: tcpAddr,
 	}
@@ -80,8 +89,8 @@ func (p *Peer) handshake(h *Host) (*HandshakeResponse, error) {
 	}
 
 	p.state = PeerStateSynchronizing
-	p.Version = res.NodeData.Version
-	p.Height = res.PayloadData.CurrentHeight
+	p.version = res.NodeData.Version
+	p.remoteHeight = res.PayloadData.CurrentHeight
 
 	return &res, nil
 }
@@ -103,8 +112,6 @@ func (p *Peer) requestChain(h *Host) error {
 		return err
 	}
 
-	fmt.Println("requestChain", requestChain)
-
 	if err := p.protocol.Notify(NotificationRequestChainID, *requestChain); err != nil {
 		return err
 	}
@@ -121,4 +128,57 @@ func (p *Peer) processSyncData(data SyncData, initial bool) error {
 	p.state = PeerStateSyncRequired
 
 	return nil
+}
+
+// TODO: Maybe move to different place?
+func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
+	if len(p.neededBlocks) > 0 {
+		n := NotificationRequestGetObjects{}
+
+		for {
+			nb := p.neededBlocks[0]
+
+			if !(checkHavingBlocks && p.core.HasBlock(&nb)) {
+				n.Blocks = append(n.Blocks, nb)
+				p.requestedBlocks = append(p.requestedBlocks, nb)
+			}
+
+			p.neededBlocks = p.neededBlocks[1:]
+
+			if len(n.Blocks) >= MaxBlockSynchronization || len(p.neededBlocks) == 0 {
+				break
+			}
+		}
+
+		if err := p.protocol.Notify(NotificationRequestGetObjectsID, n); err != nil {
+			return err
+		}
+	} else if p.lastResponseHeight < p.remoteHeight {
+		// TODO: Send request chain
+	} else {
+		// TODO Check this condition
+		//if (!(context.m_last_response_height ==
+		//	context.m_remote_blockchain_height - 1 &&
+		//	!context.m_needed_objects.size() &&
+		//	!context.m_requested_objects.size())) {
+		//	logger(Logging::ERROR, Logging::BRIGHT_RED)
+		//	<< "request_missing_blocks final condition failed!"
+		//	<< "\r\nm_last_response_height=" << context.m_last_response_height
+		//	<< "\r\nm_remote_blockchain_height=" << context.m_remote_blockchain_height
+		//	<< "\r\nm_needed_objects.size()=" << context.m_needed_objects.size()
+		//	<< "\r\nm_requested_objects.size()=" << context.m_requested_objects.size()
+		//	<< "\r\non connection [" << context << "]";
+
+		// TODO: Request missing transactions
+
+		p.state = PeerStateNormal
+		// h.logger.Infof("[%s] syncronized", p)
+		// TODO: On connection synchronized
+	}
+
+	return nil
+}
+
+func (p *Peer) String() string {
+	return fmt.Sprintf("%d", p.ID)
 }

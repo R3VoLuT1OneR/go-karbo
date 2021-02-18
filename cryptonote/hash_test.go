@@ -59,12 +59,12 @@ func TestMerkleRootTree(t *testing.T) {
 		testBytes, err := hex.DecodeString(cases[1])
 		check(err)
 
-		list := hashList{}
+		list := HashList{}
 		listLen := len(testBytes) / 32
 		for i := 0; i < listLen; i++ {
 			var h Hash
 			copy(h[:], testBytes[(i*32):(i*32) + 32])
-			list = append(list, &h)
+			list = append(list, h)
 		}
 
 		mh, err := list.merkleRootHash()

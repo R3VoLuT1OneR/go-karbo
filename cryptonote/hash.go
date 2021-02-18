@@ -7,7 +7,7 @@ import (
 
 type Hash [32]byte
 
-type hashList []*Hash
+type HashList []Hash
 
 func (h *Hash) FromBytes(b *[]byte) {
 	hashed := hash.Keccak(b)
@@ -21,13 +21,13 @@ func HashFromBytes(b []byte) Hash {
 	return h
 }
 
-func (hl hashList) merkleRootHash() (*Hash, error)  {
+func (hl HashList) merkleRootHash() (*Hash, error)  {
 	switch len(hl) {
 	case 0:
 		return nil, errors.New("at least 1 hash must be provided")
 	case 1:
 		singleHash := hl[0]
-		return singleHash, nil
+		return &singleHash, nil
 	case 2:
 		h := HashFromBytes(append(hl[0][:], hl[1][:]...))
 		return &h, nil
@@ -39,31 +39,31 @@ func (hl hashList) merkleRootHash() (*Hash, error)  {
 
 
 		readyNum := (2 * cnt) - len(hl)
-		tempList := make(hashList, readyNum)
+		tempList := make(HashList, readyNum)
 		copy(tempList, hl[:readyNum])
 
 		for i, j := readyNum, readyNum; j < cnt; i, j = i+2, j+1 {
 			h := HashFromBytes(append(hl[i][:], hl[i+1][:]...))
-			tempList = append(tempList, &h)
+			tempList = append(tempList, h)
 		}
 
 		for len(tempList) > 1 {
-			newTempList := hashList{}
+			newTempList := HashList{}
 			for i := 0; i < len(tempList); i += 2 {
 				h := HashFromBytes(append(tempList[i][:], tempList[i+1][:]...))
-				newTempList = append(newTempList, &h)
+				newTempList = append(newTempList, h)
 			}
 			tempList = newTempList
 		}
 
-		return tempList[0], nil
-		//hashedHashList := hashList{}
+		return &tempList[0], nil
+		//hashedHashList := HashList{}
 		//
 		//for i := 0; i < (listLen - (listLen % 2)); i += 2 {
-		//	thl := hashList{hl[i], hl[i+1]}
+		//	thl := HashList{hl[i], hl[i+1]}
 		//
 		//	if listLen - i == 3 {
-		//		lastHL := hashList{hl[listLen-2], hl[listLen-1]}
+		//		lastHL := HashList{hl[listLen-2], hl[listLen-1]}
 		//		lastH, err := lastHL.merkleRootHash()
 		//		if err != nil {
 		//			return nil, err
@@ -81,10 +81,10 @@ func (hl hashList) merkleRootHash() (*Hash, error)  {
 		//}
 
 		//hashedHashListLen := listLen / 2
-		//hashedHashList := hashList{}
+		//hashedHashList := HashList{}
 		//
 		//for i := 0; i < hashedHashListLen; i++ {
-		//	thl := hashList{hl[i*2], hl[i*2+1]}
+		//	thl := HashList{hl[i*2], hl[i*2+1]}
 		//
 		//	th, err := thl.merkleRootHash()
 		//	if err != nil {
@@ -95,13 +95,13 @@ func (hl hashList) merkleRootHash() (*Hash, error)  {
 		//}
 		//
 		//if listLen > hashedHashListLen * 2 {
-		//	thl := hashList{hl[listLen - 2], hl[listLen-1]}
+		//	thl := HashList{hl[listLen - 2], hl[listLen-1]}
 		//	lh, err := thl.merkleRootHash()
 		//	if err != nil {
 		//		return nil, err
 		//	}
 		//
-		//	thl = hashList{hl[listLen - 3], lh}
+		//	thl = HashList{hl[listLen - 3], lh}
 		//	th, err := thl.merkleRootHash()
 		//	if err != nil {
 		//		return nil, err

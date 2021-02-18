@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
+	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"github.com/r3volut1oner/go-karbo/p2p"
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -12,6 +13,11 @@ import (
 
 func main()  {
 	mainnet := config.MainNet()
+
+	core, err := cryptonote.NewCore(mainnet)
+	if err != nil {
+		panic(err)
+	}
 
 	ctx := interruptListener()
 	cfg := p2p.HostConfig{
@@ -23,7 +29,7 @@ func main()  {
 	logger.Out = os.Stdout
 	logger.Level = log.DebugLevel
 
-	host := p2p.NewHost(cfg, logger)
+	host := p2p.NewHost(core, cfg, logger)
 
 	fmt.Println("Server started.")
 
