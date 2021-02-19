@@ -3,6 +3,7 @@ package binary
 import (
 	"bytes"
 	"errors"
+	"reflect"
 )
 
 func Marshal(v interface{}) ([]byte, error) {
@@ -11,8 +12,13 @@ func Marshal(v interface{}) ([]byte, error) {
 	headBlockBytes := baseHeadBlock.encode()
 	buf.Write(headBlockBytes[:])
 
+	baseField := metadata{
+		name: "",
+		value: reflect.ValueOf(v),
+	}
+
 	encoder := NewEncoder(&buf)
-	if err := encoder.Encode(v, ""); err != nil {
+	if err := encoder.encode(baseField); err != nil {
 		return nil, err
 	}
 
@@ -38,5 +44,5 @@ func Unmarshal(b []byte, v interface{}) error {
 
 	decoder := NewDecoder(reader)
 
-	return decoder.Decode(v)
+	return decoder.decode(v)
 }

@@ -24,7 +24,7 @@ const (
 )
 
 type BasicNodeData struct {
-	NetworkID uuid.UUID `binary:"network_id"`
+	NetworkID uuid.UUID `binary:"network_id,binary"`
 	Version   uint8     `binary:"version"`
 	PeerID    uint64    `binary:"peer_id"`
 	LocalTime uint64    `binary:"local_time"`
@@ -33,7 +33,7 @@ type BasicNodeData struct {
 
 type SyncData struct {
 	CurrentHeight uint32          `binary:"current_height"`
-	TopBlockHash  cryptonote.Hash `binary:"top_id"`
+	TopBlockHash  cryptonote.Hash `binary:"top_id,binary"`
 }
 
 type NetworkAddress struct {
@@ -77,7 +77,7 @@ type HandshakeRequest struct {
 type HandshakeResponse struct {
 	NodeData    BasicNodeData `binary:"node_data"`
 	PayloadData SyncData      `binary:"payload_data"`
-	Peers       []PeerEntry   `binary:"local_peerlist"`
+	Peers       []PeerEntry   `binary:"local_peerlist,binary"`
 }
 
 type TimedSyncRequest struct {
@@ -87,7 +87,7 @@ type TimedSyncRequest struct {
 type TimedSyncResponse struct {
 	LocalTime 	uint64 			`binary:"local_time"`
 	PayloadData SyncData      	`binary:"payload_data"`
-	Peers       []PeerEntry   	`binary:"local_peerlist"`
+	Peers       []PeerEntry   	`binary:"local_peerlist,binary"`
 }
 
 type PingRequest struct {}

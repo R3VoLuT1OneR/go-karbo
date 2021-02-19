@@ -17,10 +17,10 @@ func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{r}
 }
 
-// Decode binary data into provided interface
+// decode binary data into provided interface
 //
 // v should be pointer to needed value
-func (d *Decoder) Decode(v interface{}) error {
+func (d *Decoder) decode(v interface{}) error {
 	if reflect.TypeOf(v).Kind() != reflect.Ptr {
 		return errors.New("interface must be pointer")
 	}
@@ -30,7 +30,7 @@ func (d *Decoder) Decode(v interface{}) error {
 		return nil
 	}
 
-	mp, order, err := mapStructFields(v)
+	metadata, err := getStructBinaryMetadata(reflect.ValueOf(v), false)
 	if err != nil {
 		return err
 	}
@@ -41,17 +41,16 @@ func (d *Decoder) Decode(v interface{}) error {
 			return err
 		}
 
-		if _, ok := mp[name]; !ok {
+		field, ok := metadata.fields[name]
+		if !ok {
 			return errors.New(fmt.Sprintf("field '%s' not found in %T", name, v))
 		}
 
-		if order[i] != name {
-			return errors.New(fmt.Sprintf("field '%s' placed in wrong order", name))
-		}
+		//if metadata.order[i] != field {
+		//	return errors.New(fmt.Sprintf("field '%s' placed in wrong order", name))
+		//}
 
-		field := mp[name]
-
-		if err := d.readValue(field); err != nil {
+		if err := d.readValue(field.value, 0); err != nil {
 			return errors.New(fmt.Sprintf("Error on '%s' field decode: %s", name, err))
 		}
 	}
@@ -75,15 +74,16 @@ func (d *Decoder) readName() (string, error) {
 	return string(str), nil
 }
 
-func (d *Decoder) readValue(value reflect.Value) error {
-	typeByte := make([]byte, 1)
-	if _, err := d.r.Read(typeByte[:]); err != nil {
-		return nil
+func (d *Decoder) readValue(value reflect.Value, typeByte byte) error {
+	if typeByte == 0 {
+		if err := binary.Read(d.r, binary.LittleEndian, &typeByte); err != nil {
+			return err
+		}
 	}
 
 	// Some simple kinds can be read with binary package.
 	// It is gonna read exact amount of needed bytes and put them as value into value reflection.
-	if value.Kind() == mapBTypeToSimpleKind[typeByte[0]] {
+	if value.Kind() == mapBTypeToSimpleKind[typeByte] {
 		if err := binary.Read(d.r, binary.LittleEndian, value.Addr().Interface()); err != nil {
 			return err
 		}
@@ -91,7 +91,37 @@ func (d *Decoder) readValue(value reflect.Value) error {
 		return nil
 	}
 
-	switch typeByte[0] {
+	if typeByte & flagArray == flagArray {
+		size, err := d.readVarInt()
+		if err != nil {
+			return err
+		}
+
+		itemTypeByte := typeByte & ^flagArray
+
+		switch value.Kind() {
+		case reflect.Slice:
+			newSlice := reflect.New(value.Type()).Elem()
+			itemType := value.Type().Elem()
+
+			for i := uint64(0); i < size; i++ {
+				item := reflect.New(itemType)
+				if err := d.readValue(item.Elem(), itemTypeByte); err != nil {
+					return err
+				}
+
+				newSlice = reflect.Append(newSlice, item.Elem())
+			}
+
+			value.Set(newSlice)
+		default:
+			return errors.New(fmt.Sprintf("not supported array kind: %s", value.Kind()))
+		}
+
+		return nil
+	}
+
+	switch typeByte {
 	// In binary types like String, Slice, Array data can be encoded.
 	// We depend on receiving interface to define how exactly we need to read the data.
 	case typeBinary:
@@ -108,6 +138,15 @@ func (d *Decoder) readValue(value reflect.Value) error {
 		switch value.Kind() {
 		// For slice we don't know exact size of the data encoded.
 		// We read item by item with N size, where N defined by receiving slice element type.
+		//case reflect.Struct:
+		//	ptr := value.Addr()
+		//	if value.Kind() == reflect.Ptr {
+		//		ptr = value
+		//	}
+		//
+		//	if err := binary.Read(d.r, binary.LittleEndian, ptr.Interface()); err != nil {
+		//		return err
+		//	}
 		case reflect.Slice:
 			newSlice := reflect.New(value.Type()).Elem()
 			itemType := value.Type().Elem()
@@ -140,13 +179,13 @@ func (d *Decoder) readValue(value reflect.Value) error {
 		}
 	case typeObject:
 		v := reflect.New(value.Type())
-		if err := d.Decode(v.Interface()); err != nil {
+		if err := d.decode(v.Interface()); err != nil {
 			return err
 		}
 
 		value.Set(v.Elem())
 	default:
-		return errors.New(fmt.Sprintf("unknown value type %v", typeByte[0]))
+		return errors.New(fmt.Sprintf("unknown value type %v", typeByte))
 	}
 
 	return nil

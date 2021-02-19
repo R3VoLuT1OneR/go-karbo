@@ -1,14 +1,18 @@
 package p2p
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
+	"os"
 	"reflect"
 	"sync"
 	"time"
@@ -222,6 +226,19 @@ func (h *Host) listenForCommands(ctx context.Context, p *Peer) {
 func (h *Host) handleNotification(p *Peer, cmd *LevinCommand) error {
 	h.logger.Tracef("[%s] handeling notification: %d", p, cmd.Command)
 
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	err = ioutil.WriteFile(
+		fmt.Sprintf("%s/%d.dat", cwd, cmd.Command),
+		cmd.Payload,
+		0644,
+	)
+	if err != nil {
+			  panic(err)
+			  }
+
 	n, err := parseNotification(cmd)
 	if err != nil {
 		return err
@@ -275,6 +292,8 @@ func (h *Host) handleNotification(p *Peer, cmd *LevinCommand) error {
 		}
 
 		return p.requestMissingBlocks(false)
+	case NotificationResponseGetObjects:
+		return h.handleResponseGetObjects(p, n.(NotificationResponseGetObjects))
 	default:
 		h.logger.Errorf("can't handle notificaiton type: %s", reflect.TypeOf(n))
 	}
@@ -330,6 +349,96 @@ func (h *Host) handleCommand(p *Peer, cmd *LevinCommand) error {
 		h.logger.Infof("[%s] sync request %d", p, command.PayloadData.CurrentHeight)
 	default:
 		h.logger.Errorf("received unknown commands type: %s", reflect.TypeOf(c))
+	}
+
+	return nil
+}
+
+func (h *Host) handleResponseGetObjects(p *Peer, n NotificationResponseGetObjects) error {
+
+	h.logger.Tracef("[%s] response to get objects", p)
+
+	if len(n.Blocks) == 0 {
+		p.state = PeerStateShutdown
+		return errors.New(fmt.Sprintf("[%s] got zer blocks on get objects", p))
+	}
+
+	if p.lastResponseHeight > n.CurrentBlockchainHeight {
+		p.state = PeerStateShutdown
+		return errors.New(fmt.Sprintf(
+			"[%s] got wrong currentBlockchainHeight = %d, current = %d", p,
+			n.CurrentBlockchainHeight,
+			p.lastResponseHeight,
+		))
+	}
+
+	// TODO: Update observedHeight
+
+	p.remoteHeight = n.CurrentBlockchainHeight
+
+	var blocks []cryptonote.Block
+	for _, rawBlock := range n.Blocks {
+		var block cryptonote.Block
+		reader := bytes.NewReader(rawBlock.Block)
+		if err := binary.Read(reader, binary.LittleEndian, block); err != nil {
+			p.state = PeerStateShutdown
+			return errors.New(fmt.Sprintf("[%s] faield to convert raw block to block", p))
+		}
+
+		// TODO: Set idle
+
+		hash, err := block.Hash()
+		if err != nil {
+			return err
+		}
+
+		if !p.requestedBlocks.Has(hash) {
+			p.state = PeerStateShutdown
+			return errors.New(fmt.Sprintf("[%s] got not requested block '%s'", p, hash.String()))
+		}
+
+		p.requestedBlocks.Remove(hash)
+		blocks = append(blocks, block)
+	}
+
+	if len(p.requestedBlocks) > 0 {
+		p.state = PeerStateShutdown
+		return errors.New(fmt.Sprintf(
+			"[%s] got not all requested objectes, missing %d", p, len(p.requestedBlocks),
+		))
+	}
+
+	if err := h.processBlocks(p, blocks); err != nil {
+		return err
+	}
+
+	return p.requestMissingBlocks(true)
+}
+
+func (h *Host) processBlocks(p *Peer, blocks []cryptonote.Block) error {
+	for _, block := range blocks {
+		if err := h.Core.AddBlock(&block); err != nil {
+			return err
+			// TODO: Process proper error
+			//
+			//if (addResult == error::AddBlockErrorCondition::BLOCK_VALIDATION_FAILED ||
+			//	addResult == error::AddBlockErrorCondition::TRANSACTION_VALIDATION_FAILED ||
+			//	addResult == error::AddBlockErrorCondition::DESERIALIZATION_FAILED) {
+			//	logger(Logging::DEBUGGING) << context << "Block verification failed, dropping connection: " << addResult.message();
+			//	m_p2p->drop_connection(context, true);
+			//	return 1;
+			//} else if (addResult == error::AddBlockErrorCondition::BLOCK_REJECTED) {
+			//	logger(Logging::DEBUGGING) << context << "Block received at sync phase was marked as orphaned, dropping connection: " << addResult.message();
+			//	m_p2p->drop_connection(context, true);
+			//	return 1;
+			//} else if (addResult == error::AddBlockErrorCode::ALREADY_EXISTS) {
+			//	logger(Logging::DEBUGGING) << context << "Block already exists, switching to idle state: " << addResult.message();
+			//	context.m_state = CryptoNoteConnectionContext::state_idle;
+			//	context.m_needed_objects.clear();
+			//	context.m_requested_objects.clear();
+			//	return 1;
+			//}
+		}
 	}
 
 	return nil

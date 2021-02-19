@@ -23,12 +23,15 @@ type testElement struct {
 
 	StringData string `binary:"string_data"`
 
-	Child testChildElement `binary:"child"`
+	Child testChildElement `binary:"child,array"`
 }
 
 type testChildElement struct {
 	SomeData string `binary:"some_data"`
 	Enabled bool `binary:"boolean_key"`
+
+	Block 			string 		`binary:"block"`
+	Transactions 	[]string 	`binary:"txs,array"`
 }
 
 func TestSimpleTestElement(t *testing.T)  {
@@ -51,6 +54,12 @@ func TestSimpleTestElement(t *testing.T)  {
 		Child: testChildElement{
 			SomeData: "string_child_data",
 			Enabled: false,
+			Block: string([]byte{0x0F, 0x0A, 0x08}),
+			Transactions: []string{
+				string([]byte{0x01}),
+				string([]byte{0x02}),
+				string([]byte{0x03}),
+			},
 		},
 	}
 

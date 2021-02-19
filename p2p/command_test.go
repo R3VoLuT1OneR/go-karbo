@@ -750,7 +750,7 @@ func TestDecodeHandShakeRequest(t *testing.T) {
 
 	var decoded HandshakeRequest
 
-	err := binary.Unmarshal(encodedHandshakeReq, decoded)
+	err := binary.Unmarshal(encodedHandshakeReq, &decoded)
 
 	mainnet := config.MainNet()
 

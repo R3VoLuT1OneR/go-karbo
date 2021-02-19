@@ -22,25 +22,33 @@ const (
 	NotificationMissingTxsID 			= NotificationBoolBase + 10
 )
 
-type NotificationNewBlock struct {
+type RawBlock struct {
+	Block 			[]byte 		`binary:"block"`
+	Transactions 	[][]byte 	`binary:"txs,array,omitempty"`
+}
 
+type NotificationNewBlock struct {
+	Block 					RawBlock	`binary:"b"`
+	CurrentBlockchainHeight uint32 		`binary:"current_blockchain_height"`
+	Hop             		uint32 	 	`binary:"hop"`
 }
 
 type NotificationNewTransactions struct {
 	Stem         bool              `binary:"stem"`
-	Transactions []cryptonote.Hash `binary:"txs"`
+	Transactions []cryptonote.Hash `binary:"txs,binary"`
 }
 
 type NotificationRequestGetObjects struct {
-	Transactions []cryptonote.Hash `binary:"txs"`
-	Blocks       []cryptonote.Hash `binary:"blocks"`
+	Transactions []cryptonote.Hash `binary:"txs,binary"`
+	Blocks       []cryptonote.Hash `binary:"blocks,binary"`
 }
 
 type NotificationResponseGetObjects struct {
-	Transactions 			[]string 			`binary:"txs"`
-	Blocks                  []cryptonote.Block  `binary:"blocks"`
-	MissedIds 				[]cryptonote.Hash 	`binary:"missed_ids"`
+	// Exists in old legacy code in definition but not exists in notification
+	Transactions 			[]string 			`binary:"txs,omitempty"`
+	Blocks                  []RawBlock          `binary:"blocks,array"`
 	CurrentBlockchainHeight uint32 				`binary:"current_blockchain_height"`
+	MissedIds 				[]cryptonote.Hash 	`binary:"missed_ids,binary,omitempty"`
 }
 
 type NotificationTxPool struct {
@@ -48,19 +56,19 @@ type NotificationTxPool struct {
 }
 
 type NotificationNewLiteBlock struct {
-	Block 					[]byte `binary:"block"`
-	CurrentBlockchainHeight uint32 `binary:"current_blockchain_height"`
-	Hop                     uint32 `binary:"hop"`
+	CurrentBlockchainHeight uint32 	 	`binary:"current_blockchain_height"`
+	Hop                     uint32 	 	`binary:"hop"`
+	Block 					[]byte 		`binary:"block"`
 }
 
 type NotificationRequestChain struct {
-	Blocks []cryptonote.Hash `binary:"block_ids"`
+	Blocks []cryptonote.Hash `binary:"block_ids,binary"`
 }
 
 type NotificationResponseChainEntry struct {
 	Start    uint32            `binary:"start_height"`
 	Total    uint32            `binary:"total_height"`
-	BlockIds []cryptonote.Hash `binary:"m_block_ids"`
+	BlockIds []cryptonote.Hash `binary:"m_block_ids,binary"`
 }
 
 var mapNotificationID = map[uint32]interface{}{

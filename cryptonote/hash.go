@@ -14,6 +14,10 @@ func (h *Hash) FromBytes(b *[]byte) {
 	copy(h[:32], hashed[:32])
 }
 
+func (h *Hash) String() string {
+	return string(h[:])
+}
+
 func HashFromBytes(b []byte) Hash {
 	hashed := hash.Keccak(&b)
 	var h Hash
@@ -111,5 +115,28 @@ func (hl HashList) merkleRootHash() (*Hash, error)  {
 		//}
 		//
 		//return hashedHashList.merkleRootHash()
+	}
+}
+
+func (hl *HashList) Index(h *Hash) int {
+	for i, th := range *hl {
+		if th == *h {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func (hl *HashList) Has(h *Hash) bool {
+	return hl.Index(h) > 0
+}
+
+func (hl *HashList) Remove(h *Hash) {
+	i := hl.Index(h)
+	if i >= 0 {
+		l := *hl
+		l = append(l[:i], l[i+1:]...)
+		*hl = l
 	}
 }

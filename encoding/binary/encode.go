@@ -18,160 +18,105 @@ func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{w}
 }
 
-func (e *Encoder) Encode(v interface{}, name string) error {
-	if v == nil {
+func (e *Encoder) encode(field metadata) error {
+	typ, err := e.getType(field.value.Type(), field.asArray)
+	if err != nil {
+		return err
+	}
+
+	if err := e.writeElementPrefix(typ, field.name); err != nil {
+		return err
+	}
+
+	if err := e.writeValue(field.value, field.asArray); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (e *Encoder) getType(typ reflect.Type, asArray bool) (byte, error) {
+	kind := typ.Kind()
+
+	if t, ok := mapSimpleKindToBType[kind]; ok {
+		return t, nil
+	}
+
+	switch kind {
+	case reflect.String:
+		return typeBinary, nil
+	case reflect.Struct:
+		return typeObject, nil
+	case reflect.Array, reflect.Slice:
+		if asArray {
+			itemType, err := e.getType(typ.Elem(), false)
+			if err != nil {
+				return 0, err
+			}
+
+			return flagArray | itemType, nil
+		}
+
+		return typeBinary, nil
+	}
+
+	return 0, errors.New(fmt.Sprintf("unsuported kind: %s", kind))
+}
+
+func (e *Encoder) writeValue(val reflect.Value, asArray bool) error {
+	kind := val.Kind()
+
+	if _, ok := mapSimpleKindToBType[kind]; ok {
+		if err := binary.Write(e.w, binary.LittleEndian, val.Interface()); err != nil {
+			return err
+		}
+
 		return nil
 	}
 
-	typ := reflect.TypeOf(v)
-	kind := typ.Kind()
-
 	switch kind {
-	case reflect.Bool:
-		if err := e.writePrefix(typeBool, name); err != nil {
-			return err
-		}
-
-		var val byte = 0
-		if v.(bool) {
-			val = 1
-		}
-
-		if _, err := e.w.Write([]byte{val}); err != nil {
-			return err
-		}
-	case reflect.Uint8:
-		if err := e.writePrefix(typeUInt8, name); err != nil {
-			return err
-		}
-
-		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
-			return err
-		}
-	case reflect.Uint16:
-		if err := e.writePrefix(typeUInt16, name); err != nil {
-			return err
-		}
-
-		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
-			return err
-		}
-	case reflect.Uint32:
-		if err := e.writePrefix(typeUInt32, name); err != nil {
-			return err
-		}
-
-		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
-			return err
-		}
-	case reflect.Uint64:
-		if err := e.writePrefix(typeUInt64, name); err != nil {
-			return err
-		}
-
-		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
-			return err
-		}
-	case reflect.Int8:
-		if err := e.writePrefix(typeInt8, name); err != nil {
-			return err
-		}
-
-		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
-			return err
-		}
-	case reflect.Int16:
-		if err := e.writePrefix(typeInt16, name); err != nil {
-			return err
-		}
-
-		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
-			return err
-		}
-	case reflect.Int32:
-		if err := e.writePrefix(typeInt32, name); err != nil {
-			return err
-		}
-
-		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
-			return err
-		}
-	case reflect.Int64:
-		if err := e.writePrefix(typeInt64, name); err != nil {
-			return err
-		}
-
-		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
-			return err
-		}
-	case reflect.Float64:
-		if err := e.writePrefix(typeFloat64, name); err != nil {
-			return err
-		}
-
-		if err := binary.Write(e.w, binary.LittleEndian, v); err != nil {
-			return err
-		}
 	case reflect.String:
-		if err := e.writePrefix(typeBinary, name); err != nil {
+		if err := e.writeVarInt(uint64(val.Len())); err != nil {
 			return err
 		}
 
-		if err := e.writeVarInt(uint64(len(v.(string)))); err != nil {
-			return err
-		}
-
-		if _, err := e.w.Write([]byte(v.(string))); err != nil {
+		if _, err := e.w.Write([]byte(val.Interface().(string))); err != nil {
 			return err
 		}
 	case reflect.Struct:
-		if err := e.writePrefix(typeObject, name); err != nil {
-			return err
-		}
-
-		fieldsMap, order, err := mapStructFields(v)
+		smd, err := getStructBinaryMetadata(val, true)
 		if err != nil {
 			return err
 		}
 
-		if err := e.writeVarInt(uint64(len(order))); err != nil {
+		if err := e.writeVarInt(uint64(len(smd.order))); err != nil {
 			return err
 		}
 
-		for i := 0; i < len(order); i++ {
-			name := order[i]
-			fieldValue := fieldsMap[name]
-
-			if err := e.Encode(fieldValue.Interface(), name); err != nil {
+		for i := 0; i < len(smd.order); i++ {
+			if err := e.encode(smd.order[i]); err != nil {
 				return err
 			}
 		}
-	case reflect.Array:
-		if err := e.writePrefix(typeBinary, name); err != nil {
-			return err
-		}
+	case reflect.Array, reflect.Slice:
+		if asArray {
+			l := val.Len()
+			if err := e.writeVarInt(uint64(l)); err != nil {
+				return err
+			}
 
-		var arrayBytesBuf bytes.Buffer
-		if err := binary.Write(&arrayBytesBuf, binary.LittleEndian, v); err != nil {
-			return err
-		}
-		arrayBytes := arrayBytesBuf.Bytes()
+			for i := 0; i < l; i++ {
+				if err := e.writeValue(val.Index(i), false); err != nil {
+					return err
+				}
+			}
 
-		if err := e.writeVarInt(uint64(len(arrayBytes))); err != nil {
-			return err
-		}
-
-		if _, err := e.w.Write(arrayBytes); err != nil {
-			return err
-		}
-	case reflect.Slice:
-		if err := e.writePrefix(typeBinary, name); err != nil {
-			return err
+			return nil
 		}
 
 		var buf bytes.Buffer
-		if err := binary.Write(&buf, binary.LittleEndian, v); err != nil {
-			return err
+		if err := binary.Write(&buf, binary.LittleEndian, val.Interface()); err != nil {
+	    	return err
 		}
 
 		if err := e.writeVarInt(uint64(buf.Len())); err != nil {
@@ -182,16 +127,14 @@ func (e *Encoder) Encode(v interface{}, name string) error {
 			return err
 		}
 	default:
-		panic(fmt.Sprintf("unsuported kind: %s", kind))
-		//panic("unsupported type")
-		//return errors.New(fmt.Sprintf("unsuported type: %T", v))
+		return errors.New(fmt.Sprintf("unsuported kind: %s", kind))
 	}
 
 	return nil
 }
 
-// writePrefix writes element name and byte of the type right after
-func (e *Encoder) writePrefix(t byte, name string) error {
+// writeElementPrefix writes element name and byte of the type right after
+func (e *Encoder) writeElementPrefix(t byte, name string) error {
 	if name == "" {
 		return nil
 	}
@@ -226,14 +169,14 @@ func (e *Encoder) writeElementName(name string) error {
 }
 
 func (e *Encoder) writeVarInt(i uint64) (err error) {
-	if i <= math.MaxUint8 {
+	if i <= 63 {
 		var v = (uint8(i) << 2) | rawSizeMarkByte
 		var b = []byte{v}
 
 		if _, err := e.w.Write(b); err != nil {
 			return err
 		}
-	} else if i <= math.MaxUint16 {
+	} else if i <= 16383 {
 		var v = (uint16(i) << 2) | rawSizeMarkWord
 		b := make([]byte, 2)
 		binary.LittleEndian.PutUint16(b, v)
@@ -241,7 +184,7 @@ func (e *Encoder) writeVarInt(i uint64) (err error) {
 		if _, err := e.w.Write(b); err != nil {
 			return err
 		}
-	} else if i <= math.MaxUint32 {
+	} else if i <= 1073741823 {
 		var v = (uint32(i) << 2) | rawSizeMarkDWord
 		b := make([]byte, 4)
 		binary.LittleEndian.PutUint32(b, v)
@@ -249,7 +192,11 @@ func (e *Encoder) writeVarInt(i uint64) (err error) {
 		if _, err := e.w.Write(b); err != nil {
 			return err
 		}
-	} else if i <= math.MaxUint64 {
+	} else  {
+		if i > 4611686018427387903 {
+			return errors.New("failed to pack varInt - too big amount")
+		}
+
 		var v = (i << 2) | rawSizeMarkInt64
 		b := make([]byte, 8)
 		binary.LittleEndian.PutUint64(b, v)
@@ -257,8 +204,6 @@ func (e *Encoder) writeVarInt(i uint64) (err error) {
 		if _, err := e.w.Write(b); err != nil {
 			return err
 		}
-	} else {
-		return errors.New("failed to pack varInt - too big amount")
 	}
 
 	return nil

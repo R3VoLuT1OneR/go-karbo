@@ -1,8 +1,6 @@
 package binary
 
 import (
-	"errors"
-	"fmt"
 	"reflect"
 )
 
@@ -37,9 +35,7 @@ const (
 	typeArray   byte = 13
 
 	//const uint8_t BIN_KV_SERIALIZE_FLAG_ARRAY = 0x80;
-	flagArray = 0x80
-
-	annotationBinary = "binary"
+	flagArray byte = 0x80
 )
 
 var mapBTypeToSimpleKind = map[byte]reflect.Kind{
@@ -55,35 +51,15 @@ var mapBTypeToSimpleKind = map[byte]reflect.Kind{
 	typeBool:    reflect.Bool,
 }
 
-type mapBinaryKeyValueField map[string]reflect.Value
-
-// mapStructFields reads interface fields and returns map and fields order
-// Order of the fields is very important for the encoding.
-func mapStructFields(v interface{}) (mapBinaryKeyValueField, []string, error) {
-	var mp = mapBinaryKeyValueField{}
-	var order []string
-
-	val := reflect.ValueOf(v)
-	typ := val.Type()
-
-	if typ.Kind() == reflect.Ptr {
-		val = val.Elem()
-		typ = val.Type()
-	}
-
-
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-
-		if name, ok := field.Tag.Lookup(annotationBinary); ok {
-			if _, ok := mp[name]; ok {
-				return nil, nil, errors.New(fmt.Sprintf("duplicate key '%s' found", name))
-			}
-
-			mp[name] = val.Field(i)
-			order = append(order, name)
-		}
-	}
-
-	return mp, order, nil
+var mapSimpleKindToBType = map[reflect.Kind]byte{
+	reflect.Uint8:   typeUInt8,
+	reflect.Uint16:  typeUInt16,
+	reflect.Uint32:  typeUInt32,
+	reflect.Uint64:  typeUInt64,
+	reflect.Int8:    typeInt8,
+	reflect.Int16:   typeInt16,
+	reflect.Int32:   typeInt32,
+	reflect.Int64:   typeInt64,
+	reflect.Float64: typeFloat64,
+	reflect.Bool:    typeBool,
 }
