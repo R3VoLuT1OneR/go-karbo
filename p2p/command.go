@@ -121,7 +121,7 @@ func NewHandshakeRequest(network *config.Network) (*HandshakeRequest, error) {
 	return &r, nil
 }
 
-func NewHandshakeResponse(h *Host) (*HandshakeResponse, error) {
+func NewHandshakeResponse(h *Node) (*HandshakeResponse, error) {
 	peerList, err := newPeerEntryList(h)
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func NewHandshakeResponse(h *Host) (*HandshakeResponse, error) {
 	}, nil
 }
 
-func newTimedSyncResponse(h *Host) (*TimedSyncResponse, error) {
+func newTimedSyncResponse(h *Node) (*TimedSyncResponse, error) {
 	syncData, err := newSyncData(h.Config.Network)
 	if err != nil {
 		return nil, err
@@ -172,7 +172,7 @@ func newBasicNodeData(n *config.Network) (BasicNodeData, error) {
 	}, nil
 }
 
-func newPeerEntryList(h *Host) ([]PeerEntry, error) {
+func newPeerEntryList(h *Node) ([]PeerEntry, error) {
 	var peers []PeerEntry
 
 	for _, p := range h.ps.white.peers {

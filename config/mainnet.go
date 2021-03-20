@@ -22,6 +22,7 @@ func MainNet() *Network {
 
 		SeedNodes: []string{
 			"localhost:32347",
+			//"node.karbo.network:32347",
 			//"seed1.karbowanec.com:32347",
 			//"seed2.karbowanec.com:32347",
 			//"seed.karbo.cloud:32347",

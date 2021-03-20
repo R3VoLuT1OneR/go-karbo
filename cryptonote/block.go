@@ -34,8 +34,8 @@ type Block struct {
 	Transaction 		Transaction
 	TransactionsHashes 	[]Hash
 
-	hash *Hash
-	hashTransactions *Hash
+	hash 				*Hash
+	hashTransactions 	*Hash
 }
 
 func (b *Block) Hash() (*Hash, error) {
@@ -96,6 +96,75 @@ func (b *Block) Hash() (*Hash, error) {
 	return b.hash, nil
 }
 
+func (b *Block) Deserialize(payload []byte) error {
+	reader := bytes.NewReader(payload)
+
+	if err := b.BlockHeader.deserialize(reader); err != nil {
+		return err
+	}
+
+	if err := b.Transaction.Deserialize(reader); err != nil {
+		return err
+	}
+
+	// TODO: Read b.ParentBlock
+	// TODO: Read b.TransactionHashes
+
+	return nil
+}
+
+func (h *BlockHeader) deserialize(reader *bytes.Reader) error {
+	var prev Hash
+	var ts uint64
+	var nonce uint32
+
+	majorVersion, err := binary.ReadUvarint(reader)
+	if err != nil {
+		return nil
+	}
+
+	minorVersion, err := binary.ReadUvarint(reader)
+	if err != nil {
+		return nil
+	}
+
+	switch uint8(majorVersion) {
+	case config.BlockMajorVersion2, config.BlockMajorVersion3:
+		if err := prev.Read(reader); err != nil {
+			return err
+		}
+	case config.BlockMajorVersion1, config.BlockMajorVersion4:
+		ts, err = binary.ReadUvarint(reader)
+		if err != nil {
+			return err
+		}
+
+		if err := prev.Read(reader); err != nil {
+			return err
+		}
+
+		if err := binary.Read(reader, binary.LittleEndian, &nonce); err != nil {
+			return err
+		}
+	default:
+		return errors.New("wrong block major version")
+	}
+
+	h.MajorVersion = uint8(majorVersion)
+	h.MinorVersion = uint8(minorVersion)
+	h.Prev = prev
+
+	if ts != 0 {
+		h.Timestamp = ts
+	}
+
+	if nonce != 0 {
+		h.Nonce = nonce
+	}
+
+	return nil
+}
+
 func (h *BlockHeader) serialize() ([]byte, error) {
 	var serialized bytes.Buffer
 
@@ -127,11 +196,13 @@ func GenerateGenesisBlock(network *config.Network) (*Block, error) {
 	var genesisBlock Block
 
 	genesisTransactionBytes, err := hex.DecodeString(network.GenesisCoinbaseTxHex)
+	reader := bytes.NewReader(genesisTransactionBytes)
+
 	if err != nil {
 		return nil, err
 	}
 
-	if err := genesisBlock.Transaction.Deserialize(&genesisTransactionBytes); err != nil {
+	if err := genesisBlock.Transaction.Deserialize(reader); err != nil {
 		return nil, err
 	}
 

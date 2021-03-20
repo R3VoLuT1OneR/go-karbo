@@ -78,8 +78,7 @@ func (t *Transaction) Serialize() ([]byte, error) {
 	return t.TransactionPrefix.serialize()
 }
 
-func (t *Transaction) Deserialize(b *[]byte) error {
-	r := bytes.NewReader(*b)
+func (t *Transaction) Deserialize(r *bytes.Reader) error {
 
 	if err := t.TransactionPrefix.deserialize(r); err != nil {
 		return err

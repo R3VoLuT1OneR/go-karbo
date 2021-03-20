@@ -1,9 +1,7 @@
 package p2p
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
@@ -28,7 +26,7 @@ type HostConfig struct {
 	ListenConfig  *net.ListenConfig
 }
 
-type Host struct {
+type Node struct {
 	Config HostConfig
 	Core   *cryptonote.Core
 
@@ -40,10 +38,10 @@ type Host struct {
 	listener *net.TCPListener
 }
 
-func NewHost(core *cryptonote.Core, cfg HostConfig, logger *log.Logger) Host {
+func NewHost(core *cryptonote.Core, cfg HostConfig, logger *log.Logger) Node {
 	var wg sync.WaitGroup
 
-	h := Host{
+	h := Node{
 		Config: cfg,
 		Core: core,
 		logger: logger,
@@ -56,7 +54,7 @@ func NewHost(core *cryptonote.Core, cfg HostConfig, logger *log.Logger) Host {
 	return h
 }
 
-func (h *Host) defaults() {
+func (h *Node) defaults() {
 	if h.Config.PeerID == 0 {
 		h.Config.PeerID = rand.Uint64()
 	}
@@ -73,7 +71,7 @@ func (h *Host) defaults() {
 	}
 }
 
-func (h *Host) Run(ctx context.Context) error {
+func (h *Node) Run(ctx context.Context) error {
 	// listener, err := h.Config.ListenConfig.Listen(ctx, "tcp", h.Config.BindAddr)
 	addr, err := net.ResolveTCPAddr("tcp", h.Config.BindAddr)
 	if err != nil {
@@ -99,7 +97,7 @@ func (h *Host) Run(ctx context.Context) error {
 	return nil
 }
 
-func (h *Host) runListener(ctx context.Context) {
+func (h *Node) runListener(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -126,7 +124,7 @@ func (h *Host) runListener(ctx context.Context) {
 	}
 }
 
-func (h *Host) handleIncomingConnection(ctx context.Context, conn net.Conn) {
+func (h *Node) handleIncomingConnection(ctx context.Context, conn net.Conn) {
 	peer := NewPeerFromIncomingConnection(conn)
 
 	h.wg.Add(1)
@@ -135,7 +133,7 @@ func (h *Host) handleIncomingConnection(ctx context.Context, conn net.Conn) {
 	h.listenForCommands(ctx, peer)
 }
 
-func (h *Host) syncWithAddr(c context.Context, addr string) {
+func (h *Node) syncWithAddr(c context.Context, addr string) {
 	ctx, cancel := context.WithCancel(c)
 	defer cancel()
 
@@ -178,7 +176,7 @@ func (h *Host) syncWithAddr(c context.Context, addr string) {
 	h.logger.Debugf("[%16x] sync closed", peer.ID)
 }
 
-func (h *Host) listenForCommands(ctx context.Context, p *Peer) {
+func (h *Node) listenForCommands(ctx context.Context, p *Peer) {
 	for {
 		switch p.state {
 		case PeerStateSyncRequired:
@@ -223,7 +221,7 @@ func (h *Host) listenForCommands(ctx context.Context, p *Peer) {
 	}
 }
 
-func (h *Host) handleNotification(p *Peer, cmd *LevinCommand) error {
+func (h *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 	h.logger.Tracef("[%s] handeling notification: %d", p, cmd.Command)
 
 	cwd, err := os.Getwd()
@@ -301,7 +299,7 @@ func (h *Host) handleNotification(p *Peer, cmd *LevinCommand) error {
 	return nil
 }
 
-func (h *Host) handleCommand(p *Peer, cmd *LevinCommand) error {
+func (h *Node) handleCommand(p *Peer, cmd *LevinCommand) error {
 	c, err := parseCommand(cmd)
 	if err != nil {
 		return err
@@ -354,7 +352,7 @@ func (h *Host) handleCommand(p *Peer, cmd *LevinCommand) error {
 	return nil
 }
 
-func (h *Host) handleResponseGetObjects(p *Peer, n NotificationResponseGetObjects) error {
+func (h *Node) handleResponseGetObjects(p *Peer, n NotificationResponseGetObjects) error {
 
 	h.logger.Tracef("[%s] response to get objects", p)
 
@@ -379,13 +377,11 @@ func (h *Host) handleResponseGetObjects(p *Peer, n NotificationResponseGetObject
 	var blocks []cryptonote.Block
 	for _, rawBlock := range n.Blocks {
 		var block cryptonote.Block
-		reader := bytes.NewReader(rawBlock.Block)
-		if err := binary.Read(reader, binary.LittleEndian, block); err != nil {
-			p.state = PeerStateShutdown
-			return errors.New(fmt.Sprintf("[%s] faield to convert raw block to block", p))
-		}
 
-		// TODO: Set idle
+		if err := block.Deserialize(rawBlock.Block); err != nil {
+			p.state = PeerStateShutdown
+			return errors.New(fmt.Sprintf("[%s] failed to convert raw block to block: %s", p, err))
+		}
 
 		hash, err := block.Hash()
 		if err != nil {
@@ -415,7 +411,7 @@ func (h *Host) handleResponseGetObjects(p *Peer, n NotificationResponseGetObject
 	return p.requestMissingBlocks(true)
 }
 
-func (h *Host) processBlocks(p *Peer, blocks []cryptonote.Block) error {
+func (h *Node) processBlocks(p *Peer, blocks []cryptonote.Block) error {
 	for _, block := range blocks {
 		if err := h.Core.AddBlock(&block); err != nil {
 			return err

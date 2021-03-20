@@ -1,6 +1,7 @@
 package cryptonote
 
 import (
+	"bytes"
 	"encoding/hex"
 	"github.com/r3volut1oner/go-karbo/config"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,8 @@ func TestTransaction_Deserialize(t *testing.T) {
 	}
 
 	var transaction Transaction
-	err = transaction.Deserialize(&serializedTransaction)
+	reader := bytes.NewReader(serializedTransaction)
+	err = transaction.Deserialize(reader)
 	assert.Nil(t, err)
 
 	assert.Equal(t, config.TransactionVersion1, transaction.TransactionPrefix.Version)

@@ -1,6 +1,9 @@
 package cryptonote
 
 import (
+	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"github.com/r3volut1oner/go-karbo/crypto/hash"
 )
@@ -14,8 +17,16 @@ func (h *Hash) FromBytes(b *[]byte) {
 	copy(h[:32], hashed[:32])
 }
 
+func (h *Hash) Read(r *bytes.Reader) error {
+	if err := binary.Read(r, binary.LittleEndian, h); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (h *Hash) String() string {
-	return string(h[:])
+	return hex.EncodeToString(h[:])
 }
 
 func HashFromBytes(b []byte) Hash {

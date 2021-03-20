@@ -38,7 +38,7 @@ type Peer struct {
 	requestedBlocks cryptonote.HashList
 }
 
-func NewPeerFromTCPAddress(ctx context.Context, h *Host, addr string) (*Peer, error) {
+func NewPeerFromTCPAddress(ctx context.Context, h *Node, addr string) (*Peer, error) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func NewPeerFromIncomingConnection(conn net.Conn) *Peer {
 	}
 }
 
-func (p *Peer) handshake(h *Host) (*HandshakeResponse, error) {
+func (p *Peer) handshake(h *Node) (*HandshakeResponse, error) {
 	if p.state != PeerStateBeforeHandshake {
 		return nil, errors.New("state is not before handshake")
 	}
@@ -106,7 +106,7 @@ func (p *Peer) ping() (*PingResponse, error) {
 	return &res, nil
 }
 
-func (p *Peer) requestChain(h *Host) error {
+func (p *Peer) requestChain(h *Node) error {
 	requestChain, err := newRequestChain(h.Config.Network)
 	if err != nil {
 		return err
