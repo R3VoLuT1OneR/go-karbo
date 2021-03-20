@@ -5,8 +5,34 @@ import (
 	"encoding/hex"
 	"github.com/r3volut1oner/go-karbo/config"
 	"github.com/stretchr/testify/assert"
+	"io/ioutil"
 	"testing"
 )
+
+func TestTransaction_Deserialize2(t *testing.T) {
+	payload, err := ioutil.ReadFile("./fixtures/block_20_trans_0.dat")
+	if err != nil {
+		panic(err)
+	}
+
+	var transaction Transaction
+	reader := bytes.NewReader(payload)
+	err = transaction.Deserialize(reader)
+
+	hash, err := transaction.Hash()
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t, "10d5b2e0acdba20638f287826a443678af0585901d2d3809143111cc051f9684", hash.String())
+
+	ser, err := transaction.Serialize()
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t, payload, ser)
+}
 
 func TestTransaction_Deserialize(t *testing.T) {
 	network := config.MainNet()

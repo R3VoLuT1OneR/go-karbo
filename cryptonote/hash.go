@@ -72,60 +72,6 @@ func (hl HashList) merkleRootHash() (*Hash, error)  {
 		}
 
 		return &tempList[0], nil
-		//hashedHashList := HashList{}
-		//
-		//for i := 0; i < (listLen - (listLen % 2)); i += 2 {
-		//	thl := HashList{hl[i], hl[i+1]}
-		//
-		//	if listLen - i == 3 {
-		//		lastHL := HashList{hl[listLen-2], hl[listLen-1]}
-		//		lastH, err := lastHL.merkleRootHash()
-		//		if err != nil {
-		//			return nil, err
-		//		}
-		//
-		//		thl[1] = lastH
-		//	}
-		//
-		//	th, err := thl.merkleRootHash()
-		//	if err != nil {
-		//		return nil, err
-		//	}
-		//
-		//	hashedHashList = append(hashedHashList, th)
-		//}
-
-		//hashedHashListLen := listLen / 2
-		//hashedHashList := HashList{}
-		//
-		//for i := 0; i < hashedHashListLen; i++ {
-		//	thl := HashList{hl[i*2], hl[i*2+1]}
-		//
-		//	th, err := thl.merkleRootHash()
-		//	if err != nil {
-		//		return nil, err
-		//	}
-		//
-		//	hashedHashList = append(hashedHashList, th)
-		//}
-		//
-		//if listLen > hashedHashListLen * 2 {
-		//	thl := HashList{hl[listLen - 2], hl[listLen-1]}
-		//	lh, err := thl.merkleRootHash()
-		//	if err != nil {
-		//		return nil, err
-		//	}
-		//
-		//	thl = HashList{hl[listLen - 3], lh}
-		//	th, err := thl.merkleRootHash()
-		//	if err != nil {
-		//		return nil, err
-		//	}
-		//
-		//	hashedHashList[len(hashedHashList) - 1] = th
-		//}
-		//
-		//return hashedHashList.merkleRootHash()
 	}
 }
 
@@ -140,7 +86,7 @@ func (hl *HashList) Index(h *Hash) int {
 }
 
 func (hl *HashList) Has(h *Hash) bool {
-	return hl.Index(h) > 0
+	return hl.Index(h) >= 0
 }
 
 func (hl *HashList) Remove(h *Hash) {

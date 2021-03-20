@@ -1,12 +1,10 @@
 package cryptonote
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 )
 
 const (
@@ -17,8 +15,14 @@ const (
 
 type KeyImage EllipticCurvePointer
 
+type TransactionSignatures [][]Signature
+
 type InputCoinbase struct {
 	Height uint32
+}
+
+func (i InputCoinbase) sigCount() int {
+	return 0
 }
 
 type InputKey struct {
@@ -27,10 +31,18 @@ type InputKey struct {
 	KeyImage
 }
 
+func (i InputKey) sigCount() int {
+	return len(i.OutputIndexes)
+}
+
 type InputMultisignature struct {
 	Amount uint64
 	SignatureCount uint8
 	OutputIndex uint32
+}
+
+func (i InputMultisignature) sigCount() int {
+	return int(i.SignatureCount)
 }
 
 type OutputKey struct {
@@ -43,6 +55,7 @@ type OutputMultisignature struct {
 }
 
 type TransactionInput interface {
+	sigCount() int
 }
 
 type TransactionOutputTarget interface {
@@ -62,25 +75,36 @@ type TransactionPrefix struct {
 }
 
 type BaseTransaction struct {
-	TransactionPrefix
+	Prefix TransactionPrefix
 }
 
 type Transaction struct {
 	TransactionPrefix
-
-	Signature [][]Signature
+	TransactionSignatures
 
 	hash *Hash
-	bytes *[]byte
 }
 
 func (t *Transaction) Serialize() ([]byte, error) {
-	return t.TransactionPrefix.serialize()
+	pb, err := t.TransactionPrefix.serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	sb, err := t.TransactionSignatures.serialize(t)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(pb, sb...), nil
 }
 
 func (t *Transaction) Deserialize(r *bytes.Reader) error {
-
 	if err := t.TransactionPrefix.deserialize(r); err != nil {
+		return err
+	}
+
+	if err := t.TransactionSignatures.deserialize(r, t); err != nil {
 		return err
 	}
 
@@ -127,6 +151,28 @@ func (tp *TransactionPrefix) serialize() ([]byte, error) {
 
 			written = binary.PutUvarint(varIntBuf, uint64(input.(InputCoinbase).Height))
 			serialized.Write(varIntBuf[:written])
+		case InputKey:
+			inputKey := input.(InputKey)
+			serialized.WriteByte(TxTagKey)
+
+			// Write amount
+			written = binary.PutUvarint(varIntBuf, inputKey.Amount)
+			serialized.Write(varIntBuf[:written])
+
+			// Write output indexes
+			size := len(inputKey.OutputIndexes)
+			written = binary.PutUvarint(varIntBuf, uint64(size))
+			serialized.Write(varIntBuf[:written])
+
+			for _, outputIndex := range inputKey.OutputIndexes {
+				written = binary.PutUvarint(varIntBuf, uint64(outputIndex))
+				serialized.Write(varIntBuf[:written])
+			}
+
+			// Write key image
+			if err := binary.Write(&serialized, binary.LittleEndian, inputKey.KeyImage); err != nil {
+				return nil, err
+			}
 		default:
 			return nil, errors.New(fmt.Sprintf("unknown input type: %T", input))
 		}
@@ -160,9 +206,7 @@ func (tp *TransactionPrefix) serialize() ([]byte, error) {
 	return serialized.Bytes(), nil
 }
 
-func (tp *TransactionPrefix) deserialize(r io.Reader) error {
-	br := bufio.NewReader(r)
-
+func (tp *TransactionPrefix) deserialize(br *bytes.Reader) error {
 	/**
 	 * Read transaction version
 	 */
@@ -204,13 +248,42 @@ func (tp *TransactionPrefix) deserialize(r io.Reader) error {
 
 			tp.Inputs[inputIndex] = InputCoinbase{uint32(blockIndex)}
 		case TxTagKey:
-			// TODO: Implement transaction key
-			return errors.New("not implemented")
+			var OutputIndexes []uint32
+			var Key KeyImage
+
+			amount, err := binary.ReadUvarint(br)
+			if err != nil {
+				return err
+			}
+
+			size, err := binary.ReadUvarint(br)
+			if err != nil {
+				return err
+			}
+
+			for i := uint64(0); i < size; i++ {
+				oi, err := binary.ReadUvarint(br)
+				if err != nil {
+					return err
+				}
+
+				OutputIndexes = append(OutputIndexes, uint32(oi))
+			}
+
+			if err := binary.Read(br, binary.LittleEndian, &Key); err != nil {
+				return err
+			}
+
+			tp.Inputs[inputIndex] = InputKey{
+				Amount:        amount,
+				OutputIndexes: OutputIndexes,
+				KeyImage: Key,
+			}
 		case TxTagMultisignature:
 			// TODO: Implement multisig
 			return errors.New("not implemented")
 		default:
-			return errors.New("unknown tx input tag")
+			return errors.New(fmt.Sprintf("unknown tx output tag: %x", tag))
 		}
 	}
 
@@ -249,7 +322,7 @@ func (tp *TransactionPrefix) deserialize(r io.Reader) error {
 			// TODO: Implement multisig
 			return errors.New("not implemented")
 		default:
-			return errors.New("unknown tx output tag")
+			return errors.New(fmt.Sprintf("unknown tx output tag: %x", tag))
 		}
 	}
 
@@ -264,6 +337,64 @@ func (tp *TransactionPrefix) deserialize(r io.Reader) error {
 	tp.Extra = make([]byte, extraLen)
 	if err := binary.Read(br, binary.LittleEndian, &tp.Extra); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (ts TransactionSignatures) serialize(t *Transaction) ([]byte, error) {
+	var serialized bytes.Buffer
+
+	for i, input := range t.TransactionPrefix.Inputs {
+		sigSize := input.sigCount()
+
+		if sigSize == 0 {
+			continue
+		}
+
+		if sigSize != len(ts[i]) {
+			return nil, errors.New("unexpected signatures size")
+		}
+
+		for _, sig := range ts[i] {
+			if err := binary.Write(&serialized, binary.LittleEndian, sig); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return serialized.Bytes(), nil
+}
+
+func (ts *TransactionSignatures) deserialize(br *bytes.Reader, t *Transaction) error {
+	inputs := t.TransactionPrefix.Inputs
+	signaturesNotExpected := len(inputs) == 0
+
+	if len(inputs) == 1 {
+		if _, ok := inputs[0].(InputCoinbase); ok {
+			signaturesNotExpected = true
+		}
+	}
+
+	for _, input := range inputs {
+		sigSize := input.sigCount()
+
+		if signaturesNotExpected && sigSize != 0 {
+			return errors.New("unexpected signatures")
+		}
+
+		if sigSize == 0 {
+			continue
+		}
+
+		sigs := make([]Signature, sigSize)
+		for i := 0; i < sigSize; i++ {
+			if err := binary.Read(br, binary.LittleEndian, &sigs[i]); err != nil {
+				return err
+			}
+		}
+
+		*ts = append(*ts, sigs)
 	}
 
 	return nil

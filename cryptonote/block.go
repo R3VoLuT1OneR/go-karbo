@@ -107,8 +107,10 @@ func (b *Block) Deserialize(payload []byte) error {
 		return err
 	}
 
+	// TODO: See why we have many unread bytes
+	// fmt.Println("not read", reader.Len(), reader.Size())
+
 	// TODO: Read b.ParentBlock
-	// TODO: Read b.TransactionHashes
 
 	return nil
 }

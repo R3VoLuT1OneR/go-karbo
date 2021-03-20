@@ -28,6 +28,7 @@ func TestGenerateGenesisBlock(t *testing.T) {
 	assert.Equal(t, &genesisBlockHash, hash)
 }
 
+
 func TestBlock_Deserialize(t *testing.T) {
 	payload1, err := ioutil.ReadFile("./fixtures/block1.dat")
 	assert.Nil(t, err)
@@ -36,10 +37,18 @@ func TestBlock_Deserialize(t *testing.T) {
 	err = block1.Deserialize(payload1)
 	assert.Nil(t, err)
 
+	hash1, err := block1.Hash()
+	assert.Nil(t, err)
+
 	assert.Equal(t, config.BlockMinorVersion0, block1.BlockHeader.MinorVersion)
 	assert.Equal(t, config.BlockMajorVersion1, block1.BlockHeader.MajorVersion)
 	assert.Equal(t, uint64(1464595534), block1.BlockHeader.Timestamp)
 	assert.Equal(t, uint32(769685647), block1.BlockHeader.Nonce)
+
+	assert.Equal(t,
+		"93fd06c51fd8a6fc9db100adbdb4c1de11270a5186b790b454db8a7419c5615e",
+		hash1.String(),
+	)
 
 	assert.Equal(t,
 		"3125b79e4a42f8d4d2fc4dffea8442e185ebda940ecd4d3b449056a4ea0efea4",
@@ -64,9 +73,7 @@ func TestBlock_Deserialize(t *testing.T) {
 	assert.Equal(t, uint32(1748233149), block2.BlockHeader.Nonce)
 	assert.Equal(t, uint64(1464595535), block2.BlockHeader.Timestamp)
 
-	hash, err := block1.Hash()
-	assert.Nil(t, err)
-	assert.Equal(t, hash.String(), block2.Prev.String())
+	assert.Equal(t, hash1.String(), block2.Prev.String())
 
 	assert.Equal(t, config.TransactionVersion1, block2.Transaction.Version)
 	assert.Equal(t, uint64(12), block2.Transaction.UnlockHeight)

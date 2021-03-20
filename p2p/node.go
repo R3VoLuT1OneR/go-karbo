@@ -54,26 +54,26 @@ func NewHost(core *cryptonote.Core, cfg HostConfig, logger *log.Logger) Node {
 	return h
 }
 
-func (h *Node) defaults() {
-	if h.Config.PeerID == 0 {
-		h.Config.PeerID = rand.Uint64()
+func (n *Node) defaults() {
+	if n.Config.PeerID == 0 {
+		n.Config.PeerID = rand.Uint64()
 	}
 
-	if h.Config.ListenConfig == nil {
-		h.Config.ListenConfig = &net.ListenConfig{}
+	if n.Config.ListenConfig == nil {
+		n.Config.ListenConfig = &net.ListenConfig{}
 	}
 
-	if h.dialer == nil {
-		h.dialer = &net.Dialer{
-			//LocalAddr: h.Config.BindAddr,
+	if n.dialer == nil {
+		n.dialer = &net.Dialer{
+			//LocalAddr: n.Config.BindAddr,
 			Timeout: time.Second,
 		}
 	}
 }
 
-func (h *Node) Run(ctx context.Context) error {
-	// listener, err := h.Config.ListenConfig.Listen(ctx, "tcp", h.Config.BindAddr)
-	addr, err := net.ResolveTCPAddr("tcp", h.Config.BindAddr)
+func (n *Node) Run(ctx context.Context) error {
+	// listener, err := n.Config.ListenConfig.Listen(ctx, "tcp", n.Config.BindAddr)
+	addr, err := net.ResolveTCPAddr("tcp", n.Config.BindAddr)
 	if err != nil {
 		return err
 	}
@@ -83,110 +83,115 @@ func (h *Node) Run(ctx context.Context) error {
 		return err
 	}
 
-	h.listener = listener
-	h.logger.Debugf("listening on %s", listener.Addr())
+	n.listener = listener
+	n.logger.Debugf("listening on %s", listener.Addr())
 
-	h.wg.Add(1)
-	go h.runListener(ctx)
+	n.wg.Add(1)
+	go n.runListener(ctx)
 
-	for _, seedAddr := range h.Config.Network.SeedNodes {
-		go h.syncWithAddr(ctx, seedAddr)
+	for _, seedAddr := range n.Config.Network.SeedNodes {
+		go n.syncWithAddr(ctx, seedAddr)
 	}
 
-	h.wg.Wait()
+	n.wg.Wait()
 	return nil
 }
 
-func (h *Node) runListener(ctx context.Context) {
+func (n *Node) runListener(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			if err := h.listener.Close(); err != nil {
-				h.logger.Errorf("failed to close listener: %s", err)
+			if err := n.listener.Close(); err != nil {
+				n.logger.Errorf("failed to close listener: %s", err)
 			}
 
-			h.wg.Done()
+			n.wg.Done()
 			return
 		default:
-			_ = h.listener.SetDeadline(time.Now().Add(time.Second * 5))
+			_ = n.listener.SetDeadline(time.Now().Add(time.Second * 5))
 
-			conn, err := h.listener.Accept()
+			conn, err := n.listener.Accept()
 			if err != nil {
 				if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 					time.Sleep(time.Second)
 					continue
 				}
-				h.logger.Errorf("failed to accept connection: %s", err)
+				n.logger.Errorf("failed to accept connection: %s", err)
 			}
 
-			go h.handleIncomingConnection(ctx, conn)
+			go n.handleIncomingConnection(ctx, conn)
 		}
 	}
 }
 
-func (h *Node) handleIncomingConnection(ctx context.Context, conn net.Conn) {
-	peer := NewPeerFromIncomingConnection(conn)
+func (n *Node) handleIncomingConnection(ctx context.Context, conn net.Conn) {
+	// TODO: Enabling handeling incomming connections
+	return
 
-	h.wg.Add(1)
-	defer h.wg.Done()
-
-	h.listenForCommands(ctx, peer)
+	//peer := NewPeerFromIncomingConnection(conn)
+	//
+	//// TODO: Add peer to peerstore. Make sure it is not exists.
+	//
+	//n.wg.Add(1)
+	//defer n.wg.Done()
+	//
+	//n.listenForCommands(ctx, peer)
 }
 
-func (h *Node) syncWithAddr(c context.Context, addr string) {
+func (n *Node) syncWithAddr(c context.Context, addr string) {
 	ctx, cancel := context.WithCancel(c)
 	defer cancel()
 
-	peer, err := NewPeerFromTCPAddress(ctx, h, addr)
+	peer, err := NewPeerFromTCPAddress(ctx, n, addr)
 	if err != nil {
-		// h.logger.Errorf("failed to dial to peer: %s", err)
+		// n.logger.Errorf("failed to dial to peer: %s", err)
 		cancel()
 		return
 	}
 
-	//handshake, err := peer.handshake(h)
-	_, err = peer.handshake(h)
+	//handshake, err := peer.handshake(n)
+	_, err = peer.handshake(n)
 	if err != nil {
-		h.logger.Error("failed handshake")
+		n.logger.Error("failed handshake")
 		cancel()
 		return
 	}
 
-	h.logger.Debugf("[#%16x] handshake established", peer.ID)
+	n.logger.Debugf("[#%16x] handshake established", peer.ID)
 
-	if err := h.ps.toWhite(peer); err != nil {
-		h.logger.Error("failed to add peer to the store")
+	if err := n.ps.toWhite(peer); err != nil {
+		n.logger.Error("failed to add peer to the store")
 		cancel()
 		return
 	}
 
-	h.wg.Add(1)
-	defer h.wg.Done()
+	n.wg.Add(1)
+	defer n.wg.Done()
 
 	//for _, pe := range handshake.Peers {
-	//	go h.syncWithAddr(c, pe.Address.String())
+	//	go n.syncWithAddr(c, pe.Address.String())
 	//}
 
-	h.listenForCommands(ctx, peer)
+	n.listenForCommands(ctx, peer)
 
-	if err := h.ps.toGrey(peer); err != nil {
-		h.logger.Warnf("peer remove failed: %s", err)
+	if err := n.ps.toGrey(peer); err != nil {
+		n.logger.Warnf("peer remove failed: %s", err)
 	}
 
-	h.logger.Debugf("[%16x] sync closed", peer.ID)
+	n.logger.Debugf("[%16x] sync closed", peer.ID)
 }
 
-func (h *Node) listenForCommands(ctx context.Context, p *Peer) {
+func (n *Node) listenForCommands(ctx context.Context, p *Peer) {
 	for {
 		switch p.state {
 		case PeerStateSyncRequired:
 			p.state = PeerStateSynchronizing
-			if err := p.requestChain(h); err != nil {
-				h.logger.Errorf("failed to write request chain: %s", err)
+			if err := p.requestChain(n); err != nil {
+				n.logger.Errorf("failed to write request chain: %s", err)
 			}
 
 		case PeerStateShutdown:
-			h.logger.Infof("[%d] shutting down...", p.ID)
+			n.logger.Infof("[%d] shutting down...", p.ID)
 			return
 		}
 
@@ -203,26 +208,26 @@ func (h *Node) listenForCommands(ctx context.Context, p *Peer) {
 
 		if err != nil {
 			log.Errorf("error on read command: %s", err)
-			_ = h.ps.toGrey(p)
+			_ = n.ps.toGrey(p)
 			break
 		}
 
 		if cmd.IsNotify {
-			if err := h.handleNotification(p, cmd); err != nil {
-				h.logger.Errorf("failed to handle notification %d: %s", cmd.Command, err)
+			if err := n.handleNotification(p, cmd); err != nil {
+				n.logger.Errorf("failed to handle notification %d: %s", cmd.Command, err)
 			}
 
 			continue
 		}
 
-		if err := h.handleCommand(p, cmd); err != nil {
-			h.logger.Errorf("failed handle command (%d): %s", cmd.Command, err)
+		if err := n.handleCommand(p, cmd); err != nil {
+			n.logger.Errorf("failed handle command (%d): %s", cmd.Command, err)
 		}
 	}
 }
 
-func (h *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
-	h.logger.Tracef("[%s] handeling notification: %d", p, cmd.Command)
+func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
+	n.logger.Tracef("[%s] handeling notification: %d", p, cmd.Command)
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -237,27 +242,27 @@ func (h *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 			  panic(err)
 			  }
 
-	n, err := parseNotification(cmd)
+	nt, err := parseNotification(cmd)
 	if err != nil {
 		return err
 	}
 
-	switch n.(type) {
+	switch nt.(type) {
 	case NotificationTxPool:
-		notification := n.(NotificationTxPool)
+		notification := nt.(NotificationTxPool)
 
-		h.logger.Infof("txs pool: %d", len(notification.Transactions))
+		n.logger.Infof("txs pool: %d", len(notification.Transactions))
 	case NotificationResponseChainEntry:
-		notification := n.(NotificationResponseChainEntry)
+		notification := nt.(NotificationResponseChainEntry)
 
-		h.logger.Tracef(
+		n.logger.Tracef(
 			"response chain entry: %d -> %d (%d)",
 			notification.Start,
 			notification.Total,
-			len(notification.BlockIds),
+			len(notification.BlocksHashes),
 		)
 
-		if len(notification.BlockIds) == 0 {
+		if len(notification.BlocksHashes) == 0 {
 			p.state = PeerStateShutdown
 			return errors.New(fmt.Sprintf("[%d] received empty blocks in response chain enrty", p.ID))
 		}
@@ -265,7 +270,7 @@ func (h *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 		// TODO: Assert first block is known to our blockchain
 
 		p.remoteHeight = notification.Total
-		p.lastResponseHeight = notification.Start + uint32(len(notification.BlockIds) - 1)
+		p.lastResponseHeight = notification.Start + uint32(len(notification.BlocksHashes) - 1)
 
 		if p.lastResponseHeight > p.remoteHeight {
 			p.state = PeerStateShutdown
@@ -274,14 +279,14 @@ func (h *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 					"[%s] sent wrong response chain entry, with Total = %d, Start = %d, blocks = %d", p,
 					notification.Start,
 					notification.Total,
-					len(notification.BlockIds),
+					len(notification.BlocksHashes),
 				),
 			)
 		}
 
 		allBlockKnown := true
-		for _, bh := range notification.BlockIds {
-			if allBlockKnown && h.Core.HasBlock(&bh) {
+		for _, bh := range notification.BlocksHashes {
+			if allBlockKnown && n.Core.HasBlock(&bh) {
 				continue
 			}
 
@@ -291,15 +296,15 @@ func (h *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 
 		return p.requestMissingBlocks(false)
 	case NotificationResponseGetObjects:
-		return h.handleResponseGetObjects(p, n.(NotificationResponseGetObjects))
+		return n.handleResponseGetObjects(p, nt.(NotificationResponseGetObjects))
 	default:
-		h.logger.Errorf("can't handle notificaiton type: %s", reflect.TypeOf(n))
+		n.logger.Errorf("can't handle notificaiton type: %s", reflect.TypeOf(n))
 	}
 
 	return nil
 }
 
-func (h *Node) handleCommand(p *Peer, cmd *LevinCommand) error {
+func (n *Node) handleCommand(p *Peer, cmd *LevinCommand) error {
 	c, err := parseCommand(cmd)
 	if err != nil {
 		return err
@@ -309,7 +314,7 @@ func (h *Node) handleCommand(p *Peer, cmd *LevinCommand) error {
 	case HandshakeRequest:
 		// TODO: Check peer network and rest of the data
 		handshakeRequest := c.(HandshakeRequest)
-		if handshakeRequest.NodeData.NetworkID != h.Config.Network.NetworkID {
+		if handshakeRequest.NodeData.NetworkID != n.Config.Network.NetworkID {
 			return errors.New("wrong network on handshake")
 		}
 
@@ -318,9 +323,9 @@ func (h *Node) handleCommand(p *Peer, cmd *LevinCommand) error {
 		//	return err
 		//}
 
-		h.logger.Debugf("[%v] handshake received", p.ID)
+		n.logger.Debugf("[%v] handshake received", p.ID)
 
-		rsp, err := NewHandshakeResponse(h)
+		rsp, err := NewHandshakeResponse(n)
 		if err != nil {
 			return err
 		}
@@ -335,7 +340,7 @@ func (h *Node) handleCommand(p *Peer, cmd *LevinCommand) error {
 			return err
 		}
 
-		res, err := newTimedSyncResponse(h)
+		res, err := newTimedSyncResponse(n)
 		if err != nil {
 			return err
 		}
@@ -344,41 +349,40 @@ func (h *Node) handleCommand(p *Peer, cmd *LevinCommand) error {
 			return err
 		}
 
-		h.logger.Infof("[%s] sync request %d", p, command.PayloadData.CurrentHeight)
+		n.logger.Infof("[%s] sync request %d", p, command.PayloadData.CurrentHeight)
 	default:
-		h.logger.Errorf("received unknown commands type: %s", reflect.TypeOf(c))
+		n.logger.Errorf("received unknown commands type: %s", reflect.TypeOf(c))
 	}
 
 	return nil
 }
 
-func (h *Node) handleResponseGetObjects(p *Peer, n NotificationResponseGetObjects) error {
+func (n *Node) handleResponseGetObjects(p *Peer, nt NotificationResponseGetObjects) error {
 
-	h.logger.Tracef("[%s] response to get objects", p)
+	n.logger.Tracef("[%s] response to get objects", p)
 
-	if len(n.Blocks) == 0 {
+	if len(nt.Blocks) == 0 {
 		p.state = PeerStateShutdown
-		return errors.New(fmt.Sprintf("[%s] got zer blocks on get objects", p))
+		return errors.New(fmt.Sprintf("[%s] got zero blocks on get objects", p))
 	}
 
-	if p.lastResponseHeight > n.CurrentBlockchainHeight {
+	if p.lastResponseHeight > nt.CurrentBlockchainHeight {
 		p.state = PeerStateShutdown
 		return errors.New(fmt.Sprintf(
 			"[%s] got wrong currentBlockchainHeight = %d, current = %d", p,
-			n.CurrentBlockchainHeight,
+			nt.CurrentBlockchainHeight,
 			p.lastResponseHeight,
 		))
 	}
 
 	// TODO: Update observedHeight
 
-	p.remoteHeight = n.CurrentBlockchainHeight
+	p.remoteHeight = nt.CurrentBlockchainHeight
 
 	var blocks []cryptonote.Block
-	for _, rawBlock := range n.Blocks {
-		var block cryptonote.Block
-
-		if err := block.Deserialize(rawBlock.Block); err != nil {
+	for i, rawBlock := range nt.Blocks {
+		block, err := rawBlock.ToBlock()
+		if err != nil {
 			p.state = PeerStateShutdown
 			return errors.New(fmt.Sprintf("[%s] failed to convert raw block to block: %s", p, err))
 		}
@@ -390,11 +394,17 @@ func (h *Node) handleResponseGetObjects(p *Peer, n NotificationResponseGetObject
 
 		if !p.requestedBlocks.Has(hash) {
 			p.state = PeerStateShutdown
-			return errors.New(fmt.Sprintf("[%s] got not requested block '%s'", p, hash.String()))
+
+			ioutil.WriteFile(fmt.Sprintf("./block_%d.dat", i), rawBlock.Block, 0644)
+			for ti, tbytes := range rawBlock.Transactions {
+				ioutil.WriteFile(fmt.Sprintf("./block_%d_trans_%d.dat", i, ti), tbytes, 0644)
+			}
+
+			return errors.New(fmt.Sprintf("[%s] got not requested block #%d '%s'", p, i, hash.String()))
 		}
 
 		p.requestedBlocks.Remove(hash)
-		blocks = append(blocks, block)
+		blocks = append(blocks, *block)
 	}
 
 	if len(p.requestedBlocks) > 0 {
@@ -404,16 +414,18 @@ func (h *Node) handleResponseGetObjects(p *Peer, n NotificationResponseGetObject
 		))
 	}
 
-	if err := h.processBlocks(p, blocks); err != nil {
+	if err := n.processBlocks(blocks); err != nil {
 		return err
 	}
+
+	n.logger.Infof("process block, total height: %d", n.Core.Height())
 
 	return p.requestMissingBlocks(true)
 }
 
-func (h *Node) processBlocks(p *Peer, blocks []cryptonote.Block) error {
+func (n *Node) processBlocks(blocks []cryptonote.Block) error {
 	for _, block := range blocks {
-		if err := h.Core.AddBlock(&block); err != nil {
+		if err := n.Core.AddBlock(&block); err != nil {
 			return err
 			// TODO: Process proper error
 			//

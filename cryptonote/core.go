@@ -9,7 +9,7 @@ type Core struct {
 	Network *config.Network
 
 	// TODO: Must be used DB instance for fetching the blocks.
-	blocks map[Hash]*Block
+	blocks map[string]*Block
 }
 
 var ErrBlockExists = errors.New("block already exists")
@@ -23,7 +23,7 @@ func NewCore(network *config.Network) (*Core, error) {
 
 	core := &Core{
 		Network: network,
-		blocks: map[Hash]*Block{},
+		blocks: map[string]*Block{},
 	}
 
 	if err := core.AddBlock(genesisBlock); err != nil {
@@ -44,13 +44,17 @@ func (c *Core) AddBlock(b *Block) error {
 		return ErrBlockExists
 	}
 
-	c.blocks[*h] = b
+	c.blocks[h.String()] = b
 
 	return nil
 }
 
 func (c *Core) HasBlock(h *Hash) bool {
-	_, ok := c.blocks[*h]
+	_, ok := c.blocks[h.String()]
 
 	return ok
+}
+
+func (c *Core) Height() int {
+	return len(c.blocks)
 }

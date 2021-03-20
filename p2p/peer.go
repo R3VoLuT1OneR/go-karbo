@@ -23,7 +23,7 @@ type Peer struct {
 	// TODO: Make sure we generate local peer ID and updating external IDs
 	ID uint64
 
-	core    *cryptonote.Core
+	node    *Node
 	version byte
 	state   byte
 
@@ -38,22 +38,22 @@ type Peer struct {
 	requestedBlocks cryptonote.HashList
 }
 
-func NewPeerFromTCPAddress(ctx context.Context, h *Node, addr string) (*Peer, error) {
+func NewPeerFromTCPAddress(ctx context.Context, n *Node, addr string) (*Peer, error) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := h.dialer.DialContext(ctx, "tcp4", addr)
+	conn, err := n.dialer.DialContext(ctx, "tcp4", addr)
 	if err != nil {
 		return nil, err
 	}
 
 	peer := Peer{
 		ID:       rand.Uint64(),
-		core: h.Core,
+		node:     n,
 		protocol: &LevinProtocol{conn},
-		address: tcpAddr,
+		address:  tcpAddr,
 	}
 
 	return &peer, nil
@@ -135,19 +135,18 @@ func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
 	if len(p.neededBlocks) > 0 {
 		n := NotificationRequestGetObjects{}
 
-		for {
+		for len(p.neededBlocks) > 0 && len(n.Blocks) < MaxBlockSynchronization {
 			nb := p.neededBlocks[0]
 
-			if !(checkHavingBlocks && p.core.HasBlock(&nb)) {
+			if p.node == nil {
+				fmt.Println("p.core", p)
+			}
+			if !(checkHavingBlocks && p.node.Core.HasBlock(&nb)) {
 				n.Blocks = append(n.Blocks, nb)
 				p.requestedBlocks = append(p.requestedBlocks, nb)
 			}
 
 			p.neededBlocks = p.neededBlocks[1:]
-
-			if len(n.Blocks) >= MaxBlockSynchronization || len(p.neededBlocks) == 0 {
-				break
-			}
 		}
 
 		if err := p.protocol.Notify(NotificationRequestGetObjectsID, n); err != nil {

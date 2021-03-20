@@ -73,14 +73,14 @@ func decodeBlock(b string) ([]byte, error) {
 	resSize := blockSizes[len(b)]
 
 	if len(b) >= len(blockSizes) || resSize < 0 {
-		return nil, fmt.Errorf("Invalid block size")
+		return nil, fmt.Errorf("invalid block size")
 	}
 
 	for i := len(b) - 1; i >= 0; i-- {
 		num, found := alphabetRevert[rune(b[i])]
 
 		if !found {
-			return nil, fmt.Errorf("Invalid character '%c' found", b[i])
+			return nil, fmt.Errorf("invalid character '%c' found", b[i])
 		}
 
 		mul := num * order
@@ -154,7 +154,7 @@ func DecodeAddr(addr string) (tag uint64, data []byte, err error) {
 	ddata := decoded[:checksumStart]
 
 	if !bytes.Equal(checksum, hash.Keccak(&ddata)[:checksumSize]) {
-		err = fmt.Errorf("Invalid checksum")
+		err = fmt.Errorf("invalid checksum")
 		return
 	}
 

@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
@@ -66,9 +67,9 @@ type NotificationRequestChain struct {
 }
 
 type NotificationResponseChainEntry struct {
-	Start    uint32            `binary:"start_height"`
-	Total    uint32            `binary:"total_height"`
-	BlockIds []cryptonote.Hash `binary:"m_block_ids,binary"`
+	Start        uint32            `binary:"start_height"`
+	Total        uint32            `binary:"total_height"`
+	BlocksHashes []cryptonote.Hash `binary:"m_block_ids,binary"`
 }
 
 var mapNotificationID = map[uint32]interface{}{
@@ -108,4 +109,33 @@ func newRequestChain(n *config.Network) (*NotificationRequestChain, error) {
 	}
 
 	return &NotificationRequestChain{[]cryptonote.Hash{*hash}}, nil
+}
+
+func (rb *RawBlock) ToBlock() (*cryptonote.Block, error) {
+	block := cryptonote.Block{}
+	var trans []cryptonote.Transaction
+
+	if err := block.Deserialize(rb.Block); err != nil {
+		return nil, err
+	}
+
+	for _, rawTrans := range rb.Transactions {
+		var t cryptonote.Transaction
+		r := bytes.NewReader(rawTrans)
+
+		if err := t.Deserialize(r); err != nil {
+			return nil, err
+		}
+
+		trans = append(trans, t)
+
+		hash, err := t.Hash()
+		if err != nil {
+			return nil, err
+		}
+
+		block.TransactionsHashes = append(block.TransactionsHashes, *hash)
+	}
+
+	return &block, nil
 }
