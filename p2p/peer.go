@@ -8,7 +8,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net"
 	"os"
 	"reflect"
@@ -56,7 +55,6 @@ func NewPeerFromTCPAddress(ctx context.Context, n *Node, addr string) (*Peer, er
 	}
 
 	peer := Peer{
-		ID:       rand.Uint64(),
 		node:     n,
 		protocol: &LevinProtocol{conn},
 		address:  tcpAddr,
@@ -141,20 +139,18 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 	case NotificationTxPool:
 		notification := nt.(NotificationTxPool)
 
-		n.logger.Infof("txs pool: %d", len(notification.Transactions))
+		n.logger.Debugf("[%s] notification tx pool, size: %d", p, len(notification.Transactions))
 	case NotificationResponseChainEntry:
 		notification := nt.(NotificationResponseChainEntry)
 
-		n.logger.Tracef(
-			"response chain entry: %d -> %d (%d)",
-			notification.Start,
-			notification.Total,
-			len(notification.BlocksHashes),
+		n.logger.Debugf(
+			"[%s] notification response chain entry, start: %d, total: %d, blocks: %d",
+			p, notification.Start, notification.Total, len(notification.BlocksHashes),
 		)
 
 		if len(notification.BlocksHashes) == 0 {
 			p.state = PeerStateShutdown
-			return errors.New(fmt.Sprintf("[%d] received empty blocks in response chain enrty", p.ID))
+			return errors.New(fmt.Sprintf("[%s] received empty blocks in response chain enrty", p))
 		}
 
 		// TODO: Assert first block is known to our blockchain
@@ -186,9 +182,16 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 
 		return p.requestMissingBlocks(false)
 	case NotificationResponseGetObjects:
-		return p.handleResponseGetObjects(nt.(NotificationResponseGetObjects))
+		notification := nt.(NotificationResponseGetObjects)
+
+		n.logger.Debugf(
+			"[%s] NotificationResponseGetObjects, height: %d",
+			p, notification.CurrentBlockchainHeight,
+		)
+
+		return p.handleResponseGetObjects(notification)
 	default:
-		n.logger.Errorf("can't handle notificaiton type: %s", reflect.TypeOf(n))
+		n.logger.Errorf("can't handle notification type: %s", reflect.TypeOf(nt))
 	}
 
 	return nil
@@ -367,9 +370,14 @@ func (p *Peer) handshake(h *Node) (*HandshakeResponse, error) {
 		return nil, errors.New("node data version not match minimal")
 	}
 
-	p.state = PeerStateSynchronizing
+	if err := p.processSyncData(res.PayloadData, true); err != nil {
+		return nil, err
+	}
+
 	p.version = res.NodeData.Version
-	p.remoteHeight = res.PayloadData.CurrentHeight
+	p.ID = res.NodeData.PeerID
+
+	// TODO: Handle new peerlist
 
 	return &res, nil
 }
@@ -400,11 +408,16 @@ func (p *Peer) requestChain(h *Node) error {
 
 func (p *Peer) processSyncData(data SyncData, initial bool) error {
 	// TODO: Implement sync data
-	//if p.state == PeerStateBeforeHandshake && !initial {
-	//	return nil
-	//}
+	if p.state == PeerStateBeforeHandshake && !initial {
+		return nil
+	}
 
-	p.state = PeerStateSyncRequired
+	if p.state == PeerStateSynchronizing {
+	} else {
+		p.state = PeerStateSyncRequired
+	}
+
+	p.remoteHeight = data.CurrentHeight
 
 	return nil
 }

@@ -29,7 +29,7 @@ func main()  {
 	logger.Out = os.Stdout
 	logger.Level = log.DebugLevel
 
-	host := p2p.NewHost(core, cfg, logger)
+	host := p2p.NewNode(core, cfg, logger)
 
 	fmt.Println("Server started.")
 

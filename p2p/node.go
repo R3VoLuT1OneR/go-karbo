@@ -32,7 +32,8 @@ type Node struct {
 	listener *net.TCPListener
 }
 
-func NewHost(core *cryptonote.Core, cfg HostConfig, logger *log.Logger) Node {
+// NewNode creates instance of the node
+func NewNode(core *cryptonote.Core, cfg HostConfig, logger *log.Logger) Node {
 	var wg sync.WaitGroup
 
 	h := Node{
@@ -151,7 +152,7 @@ func (n *Node) syncWithAddr(c context.Context, addr string) {
 		return
 	}
 
-	n.logger.Debugf("[#%16x] handshake established", peer.ID)
+	n.logger.Debugf("[%s] handshake established", peer)
 
 	if err := n.ps.toWhite(peer); err != nil {
 		n.logger.Error("failed to add peer to the store")
