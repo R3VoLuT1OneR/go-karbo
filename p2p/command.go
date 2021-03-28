@@ -102,13 +102,13 @@ var mapCommandStructs = map[uint32]interface{}{
 	CommandTimedSync: TimedSyncRequest{},
 }
 
-func NewHandshakeRequest(network *config.Network) (*HandshakeRequest, error) {
-	syncData, err := newSyncData(network)
+func NewHandshakeRequest(core *cryptonote.Core) (*HandshakeRequest, error) {
+	syncData, err := newSyncData(core)
 	if err != nil {
 		return nil, err
 	}
 
-	nodeData, err := newBasicNodeData(network)
+	nodeData, err := newBasicNodeData(core.Network)
 	if err != nil {
 		return nil, err
 	}
@@ -127,12 +127,12 @@ func NewHandshakeResponse(h *Node) (*HandshakeResponse, error) {
 		return nil, err
 	}
 
-	nodeData, err := newBasicNodeData(h.Config.Network)
+	nodeData, err := newBasicNodeData(h.Core.Network)
 	if err != nil {
 		return nil, err
 	}
 
-	payloadData, err := newSyncData(h.Config.Network)
+	payloadData, err := newSyncData(h.Core)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func NewHandshakeResponse(h *Node) (*HandshakeResponse, error) {
 }
 
 func newTimedSyncResponse(h *Node) (*TimedSyncResponse, error) {
-	syncData, err := newSyncData(h.Config.Network)
+	syncData, err := newSyncData(h.Core)
 	if err != nil {
 		return nil, err
 	}
@@ -196,9 +196,8 @@ func newPeerEntryList(h *Node) ([]PeerEntry, error) {
 	return peers, nil
 }
 
-func newSyncData(network *config.Network) (*SyncData, error) {
-	// TODO: Top block must be fetched from blockchain storage
-	topBlock, err := cryptonote.GenerateGenesisBlock(network)
+func newSyncData(core *cryptonote.Core) (*SyncData, error) {
+	topBlock, height, err := core.TopBlock()
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +207,7 @@ func newSyncData(network *config.Network) (*SyncData, error) {
 		return nil, err
 	}
 
-	return &SyncData{uint32(0), *hash}, nil
+	return &SyncData{height, *hash}, nil
 }
 
 func parseCommand(lc *LevinCommand) (interface{}, error) {

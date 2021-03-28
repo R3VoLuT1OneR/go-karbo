@@ -1,60 +1,119 @@
 package cryptonote
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
 )
 
 type Core struct {
 	Network *config.Network
 
-	// TODO: Must be used DB instance for fetching the blocks.
-	blocks map[string]*Block
+	storage Store
 }
 
-var ErrBlockExists = errors.New("block already exists")
-
-func NewCore(network *config.Network) (*Core, error) {
-	// TODO: Load blocks from db?
-	genesisBlock, err := GenerateGenesisBlock(network)
-	if err != nil {
-		return nil, err
-	}
-
+func NewCore(network *config.Network, DB Store) (*Core, error) {
 	core := &Core{
 		Network: network,
-		blocks: map[string]*Block{},
+		storage: DB,
 	}
 
-	if err := core.AddBlock(genesisBlock); err != nil {
+	if err := core.Init(); err != nil {
 		return nil, err
 	}
 
 	return core, nil
 }
 
-func (c *Core) AddBlock(b *Block) error {
-	h, err := b.Hash()
-
-	if err != nil {
-		return err
+func (c *Core) Init() error {
+	if err := c.initDB(); err != nil {
+		return errors.New(fmt.Sprintf("failed to initialize storage: %s", err))
 	}
-
-	if c.HasBlock(h) {
-		return ErrBlockExists
-	}
-
-	c.blocks[h.String()] = b
 
 	return nil
 }
 
-func (c *Core) HasBlock(h *Hash) bool {
-	_, ok := c.blocks[h.String()]
+func (c *Core) AddBlock(b *Block) error {
+	if err := c.storage.AppendBlock(b); err != nil {
+		return err
+	}
 
-	return ok
+	return nil
 }
 
-func (c *Core) Height() int {
-	return len(c.blocks)
+func (c *Core) HasBlock(h *Hash) (bool, error) {
+	hasBlock, err := c.storage.HasBlock(h)
+	if err != nil {
+		return false, nil
+	}
+
+	return hasBlock, nil
+}
+
+func (c *Core) Height() (uint32, error) {
+	height, err := c.storage.GetHeight()
+	if err != nil {
+		return 0, err
+	}
+
+	return height, err
+}
+
+func (c *Core) TopBlock() (*Block, uint32, error) {
+	height, err := c.Height()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	block, err := c.storage.GetBlockByHeight(height)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return block, height, nil
+}
+
+func (c *Core) BuildSparseChain() ([]Hash, error) {
+	var list []Hash
+
+	topBlock, height, err := c.TopBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	topHash, err := topBlock.Hash()
+	if err != nil {
+		return nil, err
+	}
+
+	list = append(list, *topHash)
+
+	for i := uint32(1); i < height; i *= 2 {
+		hash, err := c.storage.GetBlockHashByHeight(i)
+		if err != nil {
+			return nil, err
+		}
+
+		list = append(list, *hash)
+	}
+
+	ghash, err := c.storage.GetBlockHashByHeight(0)
+	if err != nil {
+		return nil, err
+	}
+
+	if !bytes.Equal(ghash[:], list[0][:]) && !bytes.Equal(ghash[:], list[len(list) - 1][:]) {
+		list = append(list, *ghash)
+	}
+
+	return list, nil
+}
+
+func (c *Core) initDB() error {
+	if err := c.storage.Init(c.Network); err != nil {
+		return err
+	}
+
+	return nil
 }

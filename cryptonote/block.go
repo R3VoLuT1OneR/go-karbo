@@ -115,6 +115,20 @@ func (b *Block) Deserialize(payload []byte) error {
 	return nil
 }
 
+func (b *Block) Serialize() ([]byte, error) {
+	bh, err := b.BlockHeader.serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	t, err := b.Transaction.Serialize()
+	if err != nil {
+		return nil, err
+	}
+
+	return append(bh[:], t[:]...), nil
+}
+
 func (h *BlockHeader) deserialize(reader *bytes.Reader) error {
 	var prev Hash
 	var ts uint64

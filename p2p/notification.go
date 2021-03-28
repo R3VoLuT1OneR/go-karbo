@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/r3volut1oner/go-karbo/config"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"github.com/r3volut1oner/go-karbo/encoding/binary"
 	"reflect"
@@ -97,18 +96,13 @@ func parseNotification(lc *LevinCommand) (interface{}, error) {
 	return nil, errors.New(fmt.Sprintf("unknown notification ID: %d", lc.Command))
 }
 
-func newRequestChain(n *config.Network) (*NotificationRequestChain, error) {
-	topBlock, err := cryptonote.GenerateGenesisBlock(n)
+func newRequestChain(core *cryptonote.Core) (*NotificationRequestChain, error) {
+	list, err := core.BuildSparseChain()
 	if err != nil {
 		return nil, err
 	}
 
-	hash, err := topBlock.Hash()
-	if err != nil {
-		return nil, err
-	}
-
-	return &NotificationRequestChain{[]cryptonote.Hash{*hash}}, nil
+	return &NotificationRequestChain{list}, nil
 }
 
 func (rb *RawBlock) ToBlock() (*cryptonote.Block, error) {

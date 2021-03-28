@@ -14,7 +14,12 @@ import (
 func main()  {
 	mainnet := config.MainNet()
 
-	core, err := cryptonote.NewCore(mainnet)
+	db, err := cryptonote.NewBadgerDB()
+	if err != nil {
+		panic(err)
+	}
+
+	core, err := cryptonote.NewCore(mainnet, db)
 	if err != nil {
 		panic(err)
 	}

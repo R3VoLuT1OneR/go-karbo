@@ -172,7 +172,12 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 
 		allBlockKnown := true
 		for _, bh := range notification.BlocksHashes {
-			if allBlockKnown && n.Core.HasBlock(&bh) {
+			hasBlock, err := n.Core.HasBlock(&bh)
+			if err != nil {
+				return err
+			}
+
+			if allBlockKnown && hasBlock {
 				continue
 			}
 
@@ -288,10 +293,10 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 		if !p.requestedBlocks.Has(hash) {
 			p.state = PeerStateShutdown
 
-			ioutil.WriteFile(fmt.Sprintf("./block_%d.dat", i), rawBlock.Block, 0644)
-			for ti, tbytes := range rawBlock.Transactions {
-				ioutil.WriteFile(fmt.Sprintf("./block_%d_trans_%d.dat", i, ti), tbytes, 0644)
-			}
+			//ioutil.WriteFile(fmt.Sprintf("./block_%d.dat", i), rawBlock.Block, 0644)
+			//for ti, tbytes := range rawBlock.Transactions {
+			//	ioutil.WriteFile(fmt.Sprintf("./block_%d_trans_%d.dat", i, ti), tbytes, 0644)
+			//}
 
 			return errors.New(fmt.Sprintf("[%s] got not requested block #%d '%s'", p, i, hash.String()))
 		}
@@ -311,7 +316,12 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 		return err
 	}
 
-	p.node.logger.Infof("process block, total height: %d", p.node.Core.Height())
+	height, err := p.node.Core.Height()
+	if err != nil {
+		return err
+	}
+
+	p.node.logger.Infof("process block, total height: %d", height)
 
 	return p.requestMissingBlocks(true)
 }
@@ -352,7 +362,7 @@ func (p *Peer) handshake(h *Node) (*HandshakeResponse, error) {
 		return nil, errors.New("state is not before handshake")
 	}
 
-	req, err := NewHandshakeRequest(h.Config.Network)
+	req, err := NewHandshakeRequest(h.Core)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +404,7 @@ func (p *Peer) ping() (*PingResponse, error) {
 }
 
 func (p *Peer) requestChain(h *Node) error {
-	requestChain, err := newRequestChain(h.Config.Network)
+	requestChain, err := newRequestChain(h.Core)
 	if err != nil {
 		return err
 	}
@@ -433,7 +443,13 @@ func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
 			if p.node == nil {
 				fmt.Println("p.core", p)
 			}
-			if !(checkHavingBlocks && p.node.Core.HasBlock(&nb)) {
+
+			hasBlock, err := p.node.Core.HasBlock(&nb)
+			if err != nil {
+				return err
+			}
+
+			if !(checkHavingBlocks && hasBlock) {
 				n.Blocks = append(n.Blocks, nb)
 				p.requestedBlocks = append(p.requestedBlocks, nb)
 			}
