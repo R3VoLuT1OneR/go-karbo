@@ -8,23 +8,6 @@ import (
 	"testing"
 )
 
-func TestEncodeRequestChain(t *testing.T) {
-	rc, err := newRequestChain(config.MainNet())
-	assert.Nil(t, err)
-
-	b, err := binary.Marshal(*rc)
-	assert.Nil(t, err)
-
-	var d NotificationRequestChain
-	err = binary.Unmarshal(b, &d)
-	if err != nil {
-		panic(err)
-	}
-	assert.Nil(t, err)
-
-	assert.Equal(t, *rc, d)
-}
-
 func TestDecodeResponseGetObject(t *testing.T) {
 	payload, err := ioutil.ReadFile("./fixtures/2004.dat")
 	assert.Nil(t, err)

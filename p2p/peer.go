@@ -74,7 +74,8 @@ func (p *Peer) listenForCommands(ctx context.Context) {
 		switch p.state {
 		case PeerStateSyncRequired:
 			p.state = PeerStateSynchronizing
-			if err := p.requestChain(p.node); err != nil {
+
+			if err := p.requestChain(); err != nil {
 				p.node.logger.Errorf("failed to write request chain: %s", err)
 			}
 
@@ -143,7 +144,7 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 	case NotificationResponseChainEntry:
 		notification := nt.(NotificationResponseChainEntry)
 
-		n.logger.Debugf(
+		n.logger.Tracef(
 			"[%s] notification response chain entry, start: %d, total: %d, blocks: %d",
 			p, notification.Start, notification.Total, len(notification.BlocksHashes),
 		)
@@ -153,7 +154,15 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 			return errors.New(fmt.Sprintf("[%s] received empty blocks in response chain enrty", p))
 		}
 
-		// TODO: Assert first block is known to our blockchain
+		firstHash := notification.BlocksHashes[0]
+		hasFirstBlock, err := n.Core.HasBlock(&firstHash)
+		if err != nil {
+			return err
+		}
+		if !hasFirstBlock {
+			p.state = PeerStateShutdown
+			return errors.New(fmt.Sprintf("[%s] hash %s missing in our blockchain", p, firstHash.String()))
+		}
 
 		p.remoteHeight = notification.Total
 		p.lastResponseHeight = notification.Start + uint32(len(notification.BlocksHashes) - 1)
@@ -403,13 +412,15 @@ func (p *Peer) ping() (*PingResponse, error) {
 	return &res, nil
 }
 
-func (p *Peer) requestChain(h *Node) error {
-	requestChain, err := newRequestChain(h.Core)
+func (p *Peer) requestChain() error {
+	n, err := newRequestChain(p.node.Core)
 	if err != nil {
 		return err
 	}
 
-	if err := p.protocol.Notify(NotificationRequestChainID, *requestChain); err != nil {
+	p.node.logger.Tracef("[%s] request chain %d (%d blocks) ", p, p.lastResponseHeight, len(n.Blocks))
+
+	if err := p.protocol.Notify(NotificationRequestChainID, *n); err != nil {
 		return err
 	}
 
@@ -432,17 +443,13 @@ func (p *Peer) processSyncData(data SyncData, initial bool) error {
 	return nil
 }
 
-// TODO: Maybe move to different place?
 func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
 	if len(p.neededBlocks) > 0 {
-		n := NotificationRequestGetObjects{}
+		neededBlocks := p.neededBlocks
+		requestBlocks := cryptonote.HashList{}
 
-		for len(p.neededBlocks) > 0 && len(n.Blocks) < MaxBlockSynchronization {
-			nb := p.neededBlocks[0]
-
-			if p.node == nil {
-				fmt.Println("p.core", p)
-			}
+		for len(neededBlocks) > 0 && len(requestBlocks) < MaxBlockSynchronization {
+			nb := neededBlocks[0]
 
 			hasBlock, err := p.node.Core.HasBlock(&nb)
 			if err != nil {
@@ -450,31 +457,32 @@ func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
 			}
 
 			if !(checkHavingBlocks && hasBlock) {
-				n.Blocks = append(n.Blocks, nb)
-				p.requestedBlocks = append(p.requestedBlocks, nb)
+				requestBlocks = append(requestBlocks, nb)
 			}
 
-			p.neededBlocks = p.neededBlocks[1:]
+			neededBlocks = neededBlocks[1:]
 		}
 
-		if err := p.protocol.Notify(NotificationRequestGetObjectsID, n); err != nil {
+		if len(requestBlocks) > 0 {
+			n := NotificationRequestGetObjects{}
+			n.Blocks = requestBlocks
+
+			if err := p.protocol.Notify(NotificationRequestGetObjectsID, n); err != nil {
+				return err
+			}
+
+			p.requestedBlocks = append(p.requestedBlocks, requestBlocks...)
+		}
+
+		p.neededBlocks = neededBlocks
+	} else if p.lastResponseHeight < p.remoteHeight {
+		if err := p.requestChain(); err != nil {
 			return err
 		}
-	} else if p.lastResponseHeight < p.remoteHeight {
-		// TODO: Send request chain
 	} else {
-		// TODO Check this condition
-		//if (!(context.m_last_response_height ==
-		//	context.m_remote_blockchain_height - 1 &&
-		//	!context.m_needed_objects.size() &&
-		//	!context.m_requested_objects.size())) {
-		//	logger(Logging::ERROR, Logging::BRIGHT_RED)
-		//	<< "request_missing_blocks final condition failed!"
-		//	<< "\r\nm_last_response_height=" << context.m_last_response_height
-		//	<< "\r\nm_remote_blockchain_height=" << context.m_remote_blockchain_height
-		//	<< "\r\nm_needed_objects.size()=" << context.m_needed_objects.size()
-		//	<< "\r\nm_requested_objects.size()=" << context.m_requested_objects.size()
-		//	<< "\r\non connection [" << context << "]";
+		if p.lastResponseHeight == p.remoteHeight - 1 && len(p.neededBlocks) == 0 && len(p.requestedBlocks) == 0 {
+			return errors.New("final condition failed")
+		}
 
 		// TODO: Request missing transactions
 

@@ -90,7 +90,7 @@ func (c *Core) BuildSparseChain() ([]Hash, error) {
 	list = append(list, *topHash)
 
 	for i := uint32(1); i < height; i *= 2 {
-		hash, err := c.storage.GetBlockHashByHeight(i)
+		hash, err := c.storage.GetBlockHashByHeight(height - i)
 		if err != nil {
 			return nil, err
 		}

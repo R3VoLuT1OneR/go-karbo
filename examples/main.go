@@ -32,7 +32,7 @@ func main()  {
 
 	logger := log.New()
 	logger.Out = os.Stdout
-	logger.Level = log.DebugLevel
+	logger.Level = log.TraceLevel
 
 	host := p2p.NewNode(core, cfg, logger)
 
