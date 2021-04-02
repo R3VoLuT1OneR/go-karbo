@@ -107,12 +107,12 @@ func newRequestChain(core *cryptonote.Core) (*NotificationRequestChain, error) {
 
 func (rb *RawBlock) ToBlock() (*cryptonote.Block, error) {
 	block := cryptonote.Block{}
-	var trans []cryptonote.Transaction
 
-	if err := block.Deserialize(rb.Block); err != nil {
+	if err := block.Deserialize(bytes.NewReader(rb.Block)); err != nil {
 		return nil, err
 	}
 
+	var trans []cryptonote.Transaction
 	for _, rawTrans := range rb.Transactions {
 		var t cryptonote.Transaction
 		r := bytes.NewReader(rawTrans)
@@ -122,13 +122,6 @@ func (rb *RawBlock) ToBlock() (*cryptonote.Block, error) {
 		}
 
 		trans = append(trans, t)
-
-		hash, err := t.Hash()
-		if err != nil {
-			return nil, err
-		}
-
-		block.TransactionsHashes = append(block.TransactionsHashes, *hash)
 	}
 
 	return &block, nil

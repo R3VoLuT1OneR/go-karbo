@@ -1,6 +1,7 @@
 package cryptonote
 
 import (
+	"bytes"
 	"github.com/r3volut1oner/go-karbo/config"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
@@ -28,13 +29,62 @@ func TestGenerateGenesisBlock(t *testing.T) {
 	assert.Equal(t, &genesisBlockHash, hash)
 }
 
+func TestBlock_Deserialize60000(t *testing.T) {
+	payload, _ := ioutil.ReadFile("./fixtures/block_60000.dat")
+
+	var block Block
+	r := bytes.NewReader(payload)
+	err := block.Deserialize(r)
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t,
+		"4cab277ce1d96569e6ec406c589f08468a490aafd729fccae3b46c7ba4cce3a7",
+		block.Parent.Prev.String(),
+	)
+
+	assert.Equal(t,
+		"4cab277ce1d96569e6ec406c589f08468a490aafd729fccae3b46c7ba4cce3a7",
+		block.Prev.String(),
+	)
+
+	hash, err := block.Hash()
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t,
+		"8e39967eb50b8a922cbfe22fe02989218345cbd61ae651ddbecf00834910ff50",
+		hash.String(),
+	)
+
+	thash, err := block.Transaction.Hash()
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t,
+		"20c2e650f05d3271a5064af2dcdada7ff1f79d8791dfb390b3f0a010942aba39",
+		thash.String(),
+	)
+
+
+	b, err := block.Serialize()
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t, payload, b)
+
+}
 
 func TestBlock_Deserialize(t *testing.T) {
 	payload1, err := ioutil.ReadFile("./fixtures/block1.dat")
 	assert.Nil(t, err)
 
 	var block1 Block
-	err = block1.Deserialize(payload1)
+	err = block1.Deserialize(bytes.NewReader(payload1))
 	assert.Nil(t, err)
 
 	hash1, err := block1.Hash()
@@ -65,7 +115,7 @@ func TestBlock_Deserialize(t *testing.T) {
 	assert.Nil(t, err)
 
 	var block2 Block
-	err = block2.Deserialize(payload2)
+	err = block2.Deserialize(bytes.NewReader(payload2))
 	assert.Nil(t, err)
 
 	assert.Equal(t, config.BlockMinorVersion0, block2.BlockHeader.MinorVersion)

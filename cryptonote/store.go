@@ -359,7 +359,7 @@ func (txn *storeTxn) getBlockByKey(b []byte) (*Block, error) {
 		return nil, err
 	}
 
-	if err := block.Deserialize(bb); err != nil {
+	if err := block.Deserialize(bytes.NewReader(bb)); err != nil {
 		return nil, err
 	}
 

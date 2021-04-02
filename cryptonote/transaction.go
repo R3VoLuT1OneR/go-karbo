@@ -75,7 +75,9 @@ type TransactionPrefix struct {
 }
 
 type BaseTransaction struct {
-	Prefix TransactionPrefix
+	*TransactionPrefix
+
+	hash *Hash
 }
 
 type Transaction struct {
@@ -125,6 +127,20 @@ func (t *Transaction) Hash() (*Hash, error) {
 	return t.hash, nil
 }
 
+func (t *BaseTransaction) Hash() (*Hash, error) {
+	if t.hash == nil {
+		b, err := t.TransactionPrefix.serialize()
+		if err != nil {
+			return nil, err
+		}
+
+		t.hash = new(Hash)
+		t.hash.FromBytes(&b)
+	}
+
+	return t.hash, nil
+}
+
 func (tp *TransactionPrefix) serialize() ([]byte, error) {
 	var serialized bytes.Buffer
 
@@ -136,12 +152,7 @@ func (tp *TransactionPrefix) serialize() ([]byte, error) {
 	written = binary.PutUvarint(varIntBuf, tp.UnlockHeight)
 	serialized.Write(varIntBuf[:written])
 
-	inputsLen := len(tp.Inputs)
-	if inputsLen == 0 {
-		return nil, errors.New("no inputs")
-	}
-
-	written = binary.PutUvarint(varIntBuf, uint64(inputsLen))
+	written = binary.PutUvarint(varIntBuf, uint64(len(tp.Inputs)))
 	serialized.Write(varIntBuf[:written])
 
 	for _, input := range tp.Inputs {
@@ -178,12 +189,7 @@ func (tp *TransactionPrefix) serialize() ([]byte, error) {
 		}
 	}
 
-	outputLen := len(tp.Outputs)
-	if outputLen == 0 {
-		return nil, errors.New("no outputs")
-	}
-
-	written = binary.PutUvarint(varIntBuf, uint64(outputLen))
+	written = binary.PutUvarint(varIntBuf, uint64(len(tp.Outputs)))
 	serialized.Write(varIntBuf[:written])
 
 	for _, output := range tp.Outputs {
@@ -283,7 +289,7 @@ func (tp *TransactionPrefix) deserialize(br *bytes.Reader) error {
 			// TODO: Implement multisig
 			return errors.New("not implemented")
 		default:
-			return errors.New(fmt.Sprintf("unknown tx output tag: %x", tag))
+			return errors.New(fmt.Sprintf("unknown tx input tag: %x", tag))
 		}
 	}
 
