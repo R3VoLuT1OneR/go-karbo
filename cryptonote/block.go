@@ -33,9 +33,9 @@ type BlockHeader struct {
 type Block struct {
 	BlockHeader
 
-	Parent 				ParentBlock
-	Transaction 		Transaction
-	TransactionsHashes 	[]Hash
+	Parent              ParentBlock
+	CoinbaseTransaction Transaction
+	TransactionsHashes  []Hash
 
 	hash 				*Hash
 	hashTransactions 	*Hash
@@ -57,7 +57,7 @@ func (b *Block) Hash() (*Hash, error) {
 		/**
 		 * Write merkle root hash bytes
 		 */
-		baseTransactionHash, err := b.Transaction.Hash()
+		baseTransactionHash, err := b.CoinbaseTransaction.Hash()
 		if err != nil {
 			return nil, err
 		}
@@ -106,6 +106,18 @@ func (b *Block) Hash() (*Hash, error) {
 	return b.hash, nil
 }
 
+func (b *Block) Index() uint32 {
+	if len(b.CoinbaseTransaction.Inputs) == 1 {
+		i := b.CoinbaseTransaction.Inputs[0]
+
+		if coinbase, ok := i.(InputCoinbase); ok {
+			return coinbase.Height
+		}
+	}
+
+	return 0
+}
+
 func (b *Block) Deserialize(r *bytes.Reader) error {
 	if err := b.BlockHeader.deserialize(r); err != nil {
 		return err
@@ -118,7 +130,7 @@ func (b *Block) Deserialize(r *bytes.Reader) error {
 		}
 	}
 
-	if err := b.Transaction.Deserialize(r); err != nil {
+	if err := b.CoinbaseTransaction.Deserialize(r); err != nil {
 		return err
 	}
 
@@ -158,7 +170,7 @@ func (b *Block) Serialize() ([]byte, error) {
 		serialized.Write(pbh)
 	}
 
-	tb, err := b.Transaction.Serialize()
+	tb, err := b.CoinbaseTransaction.Serialize()
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +409,7 @@ func GenerateGenesisBlock(network *config.Network) (*Block, error) {
 		return nil, err
 	}
 
-	if err := genesisBlock.Transaction.Deserialize(reader); err != nil {
+	if err := genesisBlock.CoinbaseTransaction.Deserialize(reader); err != nil {
 		return nil, err
 	}
 

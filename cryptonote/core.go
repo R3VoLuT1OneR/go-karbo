@@ -5,18 +5,29 @@ import (
 	"errors"
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
+	log "github.com/sirupsen/logrus"
 )
 
 type Core struct {
 	Network *config.Network
 
 	storage Store
+	logger *log.Logger
 }
 
-func NewCore(network *config.Network, DB Store) (*Core, error) {
+var (
+	ErrAddBlockAlreadyExists              = errors.New("block already exists")
+	ErrAddBlockTransactionCountNotMatch   = errors.New("transaction sizes not match")
+	ErrAddBlockTransactionSizeMax         = errors.New("transaction size bigger than allowed")
+	ErrAddBlockTransactionDeserialization = errors.New("transaction deserialization failed")
+	ErrAddBlockRejectedAsOrphaned         = errors.New("rejected as orphaned")
+)
+
+func NewCore(network *config.Network, DB Store, logger *log.Logger) (*Core, error) {
 	core := &Core{
 		Network: network,
 		storage: DB,
+		logger: logger,
 	}
 
 	if err := core.Init(); err != nil {
@@ -34,7 +45,73 @@ func (c *Core) Init() error {
 	return nil
 }
 
-func (c *Core) AddBlock(b *Block) error {
+func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
+	index := b.Index()
+	hash, err := b.Hash()
+	if err != nil {
+		return err
+	}
+
+	c.logger.Tracef("adding block: %d (%s)", index, hash.String())
+
+	hasBlock, err := c.storage.HasBlock(hash)
+	if err != nil {
+		return err
+	}
+	if hasBlock {
+		c.logger.Errorf("block already exists: %d (%s)", index, hash.String())
+		return ErrAddBlockAlreadyExists
+	}
+
+	if len(b.TransactionsHashes) != len(rawTransactions) {
+		c.logger.Errorf("wrong transaction size: %d (%s)", index, hash.String())
+		return ErrAddBlockTransactionCountNotMatch
+	}
+
+	// TODO: Check that a block is not orphaned
+	//if c.findSegmentContainingBlock(hash) == 0 {
+	//	c.logger.Errorf("rejected as orphaned: %d (%s)", index, hash.String())
+	//	return ErrAddBlockRejectedAsOrphaned
+	//}
+
+	//transactions, transactionsSize, err := c.deserializeTransactions(rawTransactions)
+	_, _, err = c.deserializeTransactions(rawTransactions)
+	if err != nil {
+		return err
+	}
+
+	coinbaseTransactionSize, err := b.CoinbaseTransaction.Size()
+	if err != nil {
+		return err
+	}
+
+	if coinbaseTransactionSize > c.Network.MaxTxSize {
+		c.logger.Errorf(fmt.Sprintf(
+			"coinbase transaction size %d bigger than allowed %d",
+			coinbaseTransactionSize,
+			c.Network.MaxTxSize,
+		))
+		return ErrAddBlockTransactionSizeMax
+	}
+
+	//blockSize := transactionsSize + coinbaseTransactionSize
+	//
+	//prevBlockIndex, err := c.BlockIndex(&b.Prev)
+	//if err != nil {
+	//	c.logger.Errorf("failed to get prev block (%s) index: %s", b.Prev.String(), err)
+	//	return err
+	//}
+	//
+	//// TODO: Fetch max height from main blockchain
+	//topIndex, err := c.TopIndex()
+	//currentBlockchainHeihgt := topIndex + 1
+	//if err != nil {
+	//	return err
+	//}
+	// TODO Fetch top index block from current segment
+	// bool addOnTop = cache->getTopBlockIndex() == previousBlockIndex;
+
+
 	if err := c.storage.AppendBlock(b); err != nil {
 		return err
 	}
@@ -51,17 +128,28 @@ func (c *Core) HasBlock(h *Hash) (bool, error) {
 	return hasBlock, nil
 }
 
-func (c *Core) Height() (uint32, error) {
-	height, err := c.storage.GetHeight()
+func (c *Core) TopIndex() (uint32, error) {
+	height, err := c.storage.TopIndex()
 	if err != nil {
+		c.logger.Errorf("failed to get height from storage: %s", err)
 		return 0, err
 	}
 
 	return height, err
 }
 
+func (c *Core) BlockIndex(h *Hash) (uint32, error) {
+	i, err := c.storage.GetBlockIndexByHash(h)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return i, err
+}
+
 func (c *Core) TopBlock() (*Block, uint32, error) {
-	height, err := c.Height()
+	height, err := c.TopIndex()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -116,4 +204,49 @@ func (c *Core) initDB() error {
 	}
 
 	return nil
+}
+
+func (c *Core) deserializeTransactions(rawTransactions [][]byte) ([]Transaction, uint64, error) {
+	var size uint64
+	var transactions []Transaction
+
+	maxTxSize := c.Network.MaxTxSize
+	for i, rt := range rawTransactions {
+		var t Transaction
+		ts := uint64(len(rt))
+
+		if ts > maxTxSize {
+			c.logger.Errorf(fmt.Sprintf("transaction size at index %d bigger than allowed %d", i, maxTxSize))
+			return nil, 0, ErrAddBlockTransactionSizeMax
+		}
+
+		if err := t.Deserialize(bytes.NewReader(rt)); err != nil {
+			c.logger.Errorf(fmt.Sprintf("transaction deserialization at index %d failed: %s", i, err))
+			return nil, 0, ErrAddBlockTransactionDeserialization
+		}
+
+		size += ts
+		transactions = append(transactions, t)
+	}
+
+	return transactions, size, nil
+}
+
+// ------------------ Experiments ------------------------------
+func (c *Core) findSegmentContainingBlock(h *Hash) int {
+	blockSegment := c.findMainChainSegmentContainingBlock(h)
+
+	if blockSegment != 0 {
+		return blockSegment
+	}
+
+	return c.findMainChainSegmentContainingBlock(h)
+}
+
+func (c *Core) findMainChainSegmentContainingBlock(h *Hash) int {
+	return 0
+}
+
+func (c *Core) findAlternativeSegmentContainingBlock(h *Hash) int {
+	return 0
 }

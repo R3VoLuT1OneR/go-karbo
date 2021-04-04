@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -282,16 +283,17 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 		))
 	}
 
-	// TODO: Update observedHeight
+	// TODO: Implement P2P Node observable height (max observed height) and update it if new observed height is found.
 
 	p.remoteHeight = nt.CurrentBlockchainHeight
 
-	var blocks []cryptonote.Block
+	newObjects := map[*cryptonote.Block][][]byte{}
 	for i, rawBlock := range nt.Blocks {
-		block, err := rawBlock.ToBlock()
-		if err != nil {
+		block := cryptonote.Block{}
+		rawBlockReader := bytes.NewReader(rawBlock.Block)
+		if err := block.Deserialize(rawBlockReader); err != nil {
 			p.state = PeerStateShutdown
-			height, _ := p.node.Core.Height()
+			height, _ := p.node.Core.TopIndex()
 			blockHeight := int(height) + 1 + i
 			_ = ioutil.WriteFile(fmt.Sprintf("./block_%d.dat", blockHeight), rawBlock.Block, 0644)
 			return errors.New(
@@ -306,17 +308,19 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 
 		if !p.requestedBlocks.Has(hash) {
 			p.state = PeerStateShutdown
-
-			//ioutil.WriteFile(fmt.Sprintf("./block_%d.dat", i), rawBlock.Block, 0644)
-			//for ti, tbytes := range rawBlock.Transactions {
-			//	ioutil.WriteFile(fmt.Sprintf("./block_%d_trans_%d.dat", i, ti), tbytes, 0644)
-			//}
-
 			return errors.New(fmt.Sprintf("[%s] got not requested block #%d '%s'", p, i, hash.String()))
 		}
 
+		if len(block.TransactionsHashes) != len(rawBlock.Transactions) {
+			p.state = PeerStateShutdown
+			return errors.New(fmt.Sprintf(
+				"[%s] got wrong block transactions size. block: %s block tx: %d raw tx: %d",
+				p, hash.String(), len(block.TransactionsHashes), len(rawBlock.Transactions),
+			))
+		}
+
 		p.requestedBlocks.Remove(hash)
-		blocks = append(blocks, *block)
+		newObjects[&block] = rawBlock.Transactions
 	}
 
 	if len(p.requestedBlocks) > 0 {
@@ -326,11 +330,11 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 		))
 	}
 
-	if err := p.processNewBlocks(blocks); err != nil {
+	if err := p.processNewObjects(newObjects); err != nil {
 		return err
 	}
 
-	height, err := p.node.Core.Height()
+	height, err := p.node.Core.TopIndex()
 	if err != nil {
 		return err
 	}
@@ -340,11 +344,11 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 	return p.requestMissingBlocks(true)
 }
 
-func (p *Peer) processNewBlocks(blocks []cryptonote.Block) error {
+func (p *Peer) processNewObjects(objects map[*cryptonote.Block][][]byte) error {
 	core := p.node.Core
 
-	for _, block := range blocks {
-		if err := core.AddBlock(&block); err != nil {
+	for block, transactions := range objects {
+		if err := core.AddBlock(block, transactions); err != nil {
 			return err
 			// TODO: Process proper error
 			//

@@ -147,7 +147,7 @@ func (n *Node) syncWithAddr(c context.Context, addr string) {
 	//handshake, err := peer.handshake(n)
 	_, err = peer.handshake(n)
 	if err != nil {
-		n.logger.Error("failed handshake")
+		n.logger.Errorf("failed handshake: %s", err)
 		cancel()
 		return
 	}

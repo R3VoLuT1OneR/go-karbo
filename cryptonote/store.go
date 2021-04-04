@@ -22,7 +22,7 @@ type Store interface {
 	GetBlockHashByHeight(uint32) (*Hash, error)
 
 	// GetBlockHeightByHash returns height for specific block hash
-	GetBlockHeightByHash(*Hash) (uint32, error)
+	GetBlockIndexByHash(*Hash) (uint32, error)
 
 	// GetBlockByHeight returns block by height
 	GetBlockByHeight(uint32) (*Block, error)
@@ -34,7 +34,7 @@ type Store interface {
 	HasBlock(*Hash) (bool, error)
 
 	// GetHeight of current saved blockchain
-	GetHeight() (uint32, error)
+	TopIndex() (uint32, error)
 
 	// Empty checks if database is new and empty
 	Empty() (bool, error)
@@ -102,7 +102,7 @@ func (db *badgerDB) Init(n *config.Network) error {
 		return err
 	}
 
-	height, err := db.GetBlockHeightByHash(genesisHash)
+	height, err := db.GetBlockIndexByHash(genesisHash)
 
 	if err == ErrBlockNotFound {
 		if err := db.AppendBlock(block); err != nil {
@@ -218,7 +218,7 @@ func (db *badgerDB) GetBlockHashByHeight(height uint32) (*Hash, error) {
 	return h, err
 }
 
-func (db *badgerDB) GetBlockHeightByHash(h *Hash) (uint32, error) {
+func (db *badgerDB) GetBlockIndexByHash(h *Hash) (uint32, error) {
 	var height uint32
 
 	err := db.badger.View(func(txn *badger.Txn) error {
@@ -276,7 +276,7 @@ func (db *badgerDB) GetBlockByHeight(height uint32) (*Block, error) {
 }
 
 func (db *badgerDB) Empty() (bool, error) {
-	height, err := db.GetHeight()
+	height, err := db.TopIndex()
 	if err != nil {
 		return false, err
 	}
@@ -292,7 +292,7 @@ func (db *badgerDB) Close() error {
 	return nil
 }
 
-func (db *badgerDB) GetHeight() (uint32, error) {
+func (db *badgerDB) TopIndex() (uint32, error) {
 	height := uint64(0)
 
 	err := db.badger.View(func(txn *badger.Txn) error {

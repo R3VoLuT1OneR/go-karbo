@@ -113,6 +113,15 @@ func (t *Transaction) Deserialize(r *bytes.Reader) error {
 	return nil
 }
 
+func (t *Transaction) Size() (uint64, error) {
+	b, err := t.Serialize()
+	if err != nil {
+		return 0, err
+	}
+
+	return uint64(len(b)), err
+}
+
 func (t *Transaction) Hash() (*Hash, error) {
 	if t.hash == nil {
 		transactionBytes, err := t.Serialize()

@@ -54,7 +54,7 @@ func TestBlock_Deserialize200054(t *testing.T) {
 		hash.String(),
 	)
 
-	thash, err := block.Transaction.Hash()
+	thash, err := block.CoinbaseTransaction.Hash()
 	if err != nil {
 		panic(err)
 	}
@@ -98,7 +98,7 @@ func TestBlock_Deserialize105385(t *testing.T) {
 		hash.String(),
 	)
 
-	thash, err := block.Transaction.Hash()
+	thash, err := block.CoinbaseTransaction.Hash()
 	if err != nil {
 		panic(err)
 	}
@@ -147,7 +147,7 @@ func TestBlock_Deserialize60000(t *testing.T) {
 		hash.String(),
 	)
 
-	thash, err := block.Transaction.Hash()
+	thash, err := block.CoinbaseTransaction.Hash()
 	if err != nil {
 		panic(err)
 	}
@@ -193,11 +193,11 @@ func TestBlock_Deserialize(t *testing.T) {
 		block1.BlockHeader.Prev.String(),
 	)
 
-	assert.Equal(t, config.TransactionVersion1, block1.Transaction.Version)
-	assert.Equal(t, uint64(11), block1.Transaction.UnlockHeight)
-	assert.Len(t, block1.Transaction.Inputs, 1)
-	assert.Len(t, block1.Transaction.Outputs, 7)
-	assert.Equal(t, []byte{0x1, 0xc1, 0xc9, 0xaa, 0xd0, 0xaa, 0x73, 0xbb, 0x5f, 0xc, 0x8, 0xb6, 0xb0, 0xe6, 0xe1, 0x4e, 0xc0, 0xdd, 0xa, 0xca, 0xa5, 0x6b, 0x9c, 0x52, 0x85, 0x74, 0xbd, 0x39, 0x29, 0x1c, 0xb4, 0x84, 0xc0}, block1.Transaction.Extra)
+	assert.Equal(t, config.TransactionVersion1, block1.CoinbaseTransaction.Version)
+	assert.Equal(t, uint64(11), block1.CoinbaseTransaction.UnlockHeight)
+	assert.Len(t, block1.CoinbaseTransaction.Inputs, 1)
+	assert.Len(t, block1.CoinbaseTransaction.Outputs, 7)
+	assert.Equal(t, []byte{0x1, 0xc1, 0xc9, 0xaa, 0xd0, 0xaa, 0x73, 0xbb, 0x5f, 0xc, 0x8, 0xb6, 0xb0, 0xe6, 0xe1, 0x4e, 0xc0, 0xdd, 0xa, 0xca, 0xa5, 0x6b, 0x9c, 0x52, 0x85, 0x74, 0xbd, 0x39, 0x29, 0x1c, 0xb4, 0x84, 0xc0}, block1.CoinbaseTransaction.Extra)
 
 	payload2, err := ioutil.ReadFile("./fixtures/block2.dat")
 	assert.Nil(t, err)
@@ -213,9 +213,9 @@ func TestBlock_Deserialize(t *testing.T) {
 
 	assert.Equal(t, hash1.String(), block2.Prev.String())
 
-	assert.Equal(t, config.TransactionVersion1, block2.Transaction.Version)
-	assert.Equal(t, uint64(12), block2.Transaction.UnlockHeight)
-	assert.Len(t, block2.Transaction.Inputs, 1)
-	assert.Len(t, block2.Transaction.Outputs, 7)
-	assert.Equal(t, []byte{0x1, 0x6f, 0x7f, 0x61, 0xe2, 0x4e, 0xfe, 0x12, 0x41, 0xc2, 0x55, 0xc8, 0x8, 0xc0, 0x95, 0xbb, 0x3a, 0x80, 0xd5, 0x93, 0x28, 0x1, 0x3d, 0xb0, 0x93, 0x55, 0x91, 0xaf, 0xf5, 0x5d, 0xf4, 0x55, 0xf1}, block2.Transaction.Extra)
+	assert.Equal(t, config.TransactionVersion1, block2.CoinbaseTransaction.Version)
+	assert.Equal(t, uint64(12), block2.CoinbaseTransaction.UnlockHeight)
+	assert.Len(t, block2.CoinbaseTransaction.Inputs, 1)
+	assert.Len(t, block2.CoinbaseTransaction.Outputs, 7)
+	assert.Equal(t, []byte{0x1, 0x6f, 0x7f, 0x61, 0xe2, 0x4e, 0xfe, 0x12, 0x41, 0xc2, 0x55, 0xc8, 0x8, 0xc0, 0x95, 0xbb, 0x3a, 0x80, 0xd5, 0x93, 0x28, 0x1, 0x3d, 0xb0, 0x93, 0x55, 0x91, 0xaf, 0xf5, 0x5d, 0xf4, 0x55, 0xf1}, block2.CoinbaseTransaction.Extra)
 }

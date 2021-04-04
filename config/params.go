@@ -18,12 +18,20 @@ const (
 
 	BlockMinorVersion0 byte = 0
 	BlockMinorVersion1 byte = 1
+
+	MaxBlockNumber 			= uint64(500000000)
+	MaxBlockBlobSize 		= uint64(500000000)
+	MaxTxSize 				= uint64(1000000000)
 )
 
 // Network represents network params
 type Network struct {
 
 	NetworkID uuid.UUID
+
+	MaxBlockNumber uint64
+	MaxBlockBlobSize uint64
+	MaxTxSize uint64
 
 	Name string
 	Ticker string

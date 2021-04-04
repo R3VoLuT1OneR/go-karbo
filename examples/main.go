@@ -19,7 +19,11 @@ func main()  {
 		panic(err)
 	}
 
-	core, err := cryptonote.NewCore(mainnet, db)
+	coreLogger := log.New()
+	coreLogger.Out = os.Stdout
+	coreLogger.Level = log.TraceLevel
+
+	core, err := cryptonote.NewCore(mainnet, db, coreLogger)
 	if err != nil {
 		panic(err)
 	}
