@@ -17,7 +17,7 @@ type ParentBlock struct {
 	Prev         Hash
 
 	TransactionsCount     uint16
-	BaseTransactionBranch []Hash
+	BaseTransactionBranch HashList
 	BaseTransaction       BaseTransaction
 	BlockchainBranch      []Hash
 }
@@ -275,25 +275,20 @@ func (pb *ParentBlock) serialize(hashing bool) ([]byte, error) {
 	}
 
 	if hashing {
-		h, err := pb.BaseTransaction.Hash()
-		if err != nil {
-			return nil, err
-		}
-		hl := HashList{*h}
-
-		tmh, err := hl.merkleRootHash()
+		th, err := pb.BaseTransaction.Hash()
 		if err != nil {
 			return nil, err
 		}
 
-		serialized.Write(tmh[:])
+		h := pb.BaseTransactionBranch.TreeHashFromBranch(*th)
+		serialized.Write(h[:])
 	}
 
 	written = binary.PutUvarint(buf, uint64(pb.TransactionsCount))
 	serialized.Write(buf[:written])
 
-	for i := 0; i < len(pb.BaseTransactionBranch); i++ {
-		serialized.Write(pb.BaseTransactionBranch[i][:])
+	for _, tb := range pb.BaseTransactionBranch {
+		serialized.Write(tb[:])
 	}
 
 	btb, err := pb.BaseTransaction.serialize()
@@ -301,6 +296,10 @@ func (pb *ParentBlock) serialize(hashing bool) ([]byte, error) {
 		return nil, err
 	}
 	serialized.Write(btb)
+
+	for _, h := range pb.BlockchainBranch {
+		serialized.Write(h[:])
+	}
 
 	return serialized.Bytes(), nil
 }
@@ -337,8 +336,8 @@ func (pb *ParentBlock) deserialize(r *bytes.Reader) error {
 		return err
 	}
 
-	var baseTxBranch []Hash
-	branchSize := treeDepth(uint(txCount))
+	var baseTxBranch HashList
+	branchSize := treeDepth(int(txCount))
 	for i := 0; i < branchSize; i++ {
 		var th Hash
 		if err := th.Read(r); err != nil {
@@ -352,6 +351,28 @@ func (pb *ParentBlock) deserialize(r *bytes.Reader) error {
 		return err
 	}
 
+	tef, err := baseTx.ParseExtra()
+	if err != nil {
+		return err
+	}
+
+	if tef.MiningTag == nil {
+		return errors.New("can't get extra merge mining tag")
+	}
+
+	if tef.MiningTag.Depth > 8 * 32 {
+		return errors.New("wrong merge mining tag depth")
+	}
+
+	var blockchainBranch HashList
+	for i := uint64(0); i < tef.MiningTag.Depth; i++ {
+		var h Hash
+		if err := h.Read(r); err != nil {
+			return err
+		}
+		blockchainBranch = append(blockchainBranch, h)
+	}
+
 	pb.MajorVersion = byte(majorVersion)
 	pb.MinorVersion = byte(minorVersion)
 	pb.Timestamp = timestamp
@@ -361,6 +382,7 @@ func (pb *ParentBlock) deserialize(r *bytes.Reader) error {
 	pb.TransactionsCount = uint16(txCount)
 	pb.BaseTransactionBranch = baseTxBranch
 	pb.BaseTransaction = baseTx
+	pb.BlockchainBranch = blockchainBranch
 
 	return nil
 }
@@ -399,13 +421,13 @@ func GenerateGenesisBlock(network *config.Network) (*Block, error) {
 //	}
 //	return depth;
 //}
-func treeDepth(count uint) int {
+func treeDepth(count int) int {
 	depth := 0
 
-	for i := unsafe.Sizeof(count) << 2; i > 0; i >>= 1 {
-		if count >> 1 > 0 {
+	for i := int(unsafe.Sizeof(count)) << 2; i > 0; i >>= 1 {
+		if count >> i > 0 {
 			count >>= i
-			depth += 1
+			depth += i
 		}
 	}
 

@@ -29,8 +29,96 @@ func TestGenerateGenesisBlock(t *testing.T) {
 	assert.Equal(t, &genesisBlockHash, hash)
 }
 
+func TestBlock_Deserialize200054(t *testing.T) {
+	payload, _ := ioutil.ReadFile("./fixtures/block_200054.dat")
+
+	var block Block
+	r := bytes.NewReader(payload)
+	err := block.Deserialize(r)
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t,
+		"6769241077017f26c0a170fd9630c292695039399b6a22edaf293b52f2d542fb",
+		block.Prev.String(),
+	)
+
+	hash, err := block.Hash()
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t,
+		"231a4584e0c13325024059482fabd99188574f51336d19c0b5787f7ccc9e4dfc",
+		hash.String(),
+	)
+
+	thash, err := block.Transaction.Hash()
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t,
+		"25fc20b292ace0458ed2f9cf046588f3e7ecc02b6c2f372a29e4475545f9cef1",
+		thash.String(),
+	)
+
+
+	b, err := block.Serialize()
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t, payload, b)
+}
+
+func TestBlock_Deserialize105385(t *testing.T) {
+	payload, _ := ioutil.ReadFile("./fixtures/block_105385.dat")
+
+	var block Block
+	r := bytes.NewReader(payload)
+	err := block.Deserialize(r)
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t,
+		"cc20ae5bd6c75e25a0885bcbb058e31c5b344dedc43a7f50c8ac6f1eaada795f",
+		block.Prev.String(),
+	)
+
+	hash, err := block.Hash()
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t,
+		"b8b793a00e0a1bb790987e5f6a1b551f9e397be5aa74595335094063be31f878",
+		hash.String(),
+	)
+
+	thash, err := block.Transaction.Hash()
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t,
+		"effd9d3ffc37dc92f1f9721858c8ec11333c74ab74dcb60fc32926aa0dd51d8b",
+		thash.String(),
+	)
+
+
+	b, err := block.Serialize()
+	if err != nil {
+		panic(err)
+	}
+
+	assert.Equal(t, payload, b)
+}
+
 func TestBlock_Deserialize60000(t *testing.T) {
-	payload, _ := ioutil.ReadFile("./fixtures/block_60000.dat")
+	payload, _ := ioutil.ReadFile("./fixtures/block_60001.dat")
 
 	var block Block
 	r := bytes.NewReader(payload)

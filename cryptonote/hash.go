@@ -75,6 +75,47 @@ func (hl HashList) merkleRootHash() (*Hash, error)  {
 	}
 }
 
+func (hl HashList) TreeHashFromBranch(leaf Hash) Hash {
+	depth := len(hl)
+
+	if depth == 0 {
+		return leaf
+	}
+
+	fromLeaf := true
+
+	var buf [2][32]byte
+	var leafPath, branchPath *[32]byte
+
+	for depth > 0 {
+		depth--
+
+		// TODO: WTF?
+		//if (path && (((const char *) path)[depth >> 3] & (1 << (depth & 7))) != 0) {
+		//	leaf_path = buffer[1];
+		//	branch_path = buffer[0];
+		//} else {
+		//	leaf_path = buffer[0];
+		//	branch_path = buffer[1];
+		//}
+
+		leafPath = &buf[0]
+		branchPath = &buf[1]
+
+		if fromLeaf {
+			copy(leafPath[:], leaf[:])
+			fromLeaf = false
+		} else {
+			h := HashFromBytes(append(buf[0][:], buf[1][:]...))
+			copy(leafPath[:], h[:])
+		}
+
+		copy(branchPath[:], hl[depth][:])
+	}
+
+	return HashFromBytes(append(buf[0][:], buf[1][:]...))
+}
+
 func (hl *HashList) Index(h *Hash) int {
 	for i, th := range *hl {
 		if th == *h {

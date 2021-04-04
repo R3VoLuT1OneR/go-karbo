@@ -292,8 +292,11 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 		if err != nil {
 			p.state = PeerStateShutdown
 			height, _ := p.node.Core.Height()
-			_ = ioutil.WriteFile(fmt.Sprintf("./block_%d.dat", i + int(height)), rawBlock.Block, 0644)
-			return errors.New(fmt.Sprintf("[%s] failed to convert raw block (%d): %s", p, i + int(height), err))
+			blockHeight := int(height) + 1 + i
+			_ = ioutil.WriteFile(fmt.Sprintf("./block_%d.dat", blockHeight), rawBlock.Block, 0644)
+			return errors.New(
+				fmt.Sprintf("[%s] (%d) failed to convert raw block (%d): %s", p, i, blockHeight, err),
+			)
 		}
 
 		hash, err := block.Hash()
