@@ -1,2 +1,5 @@
 # Goland IDE
 .idea
+
+# Local development database
+.badger
