@@ -1,6 +1,11 @@
 # Karbo Go
 Karbo algorithms and tools implemented in golang.
 
+### Running
+
+```shell
+go run krbd.go
+```
 
 ## Development Notes
 
