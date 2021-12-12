@@ -9,27 +9,27 @@ import (
 )
 
 const (
-	NotificationBoolBase 				= 2000
-	NotificationNewBlockID 				= NotificationBoolBase + 1
-	NotificationNewTransactionsID 		= NotificationBoolBase + 2
-	NotificationRequestGetObjectsID 	= NotificationBoolBase + 3
-	NotificationResponseGetObjectsID 	= NotificationBoolBase + 4
-	NotificationRequestChainID 			= NotificationBoolBase + 6
-	NotificationResponseChainEntryID	= NotificationBoolBase + 7
-	NotificationTxPoolID 				= NotificationBoolBase + 8
-	NotificationNewLiteBlockID 			= NotificationBoolBase + 9
-	NotificationMissingTxsID 			= NotificationBoolBase + 10
+	NotificationBoolBase             = 2000
+	NotificationNewBlockID           = NotificationBoolBase + 1
+	NotificationNewTransactionsID    = NotificationBoolBase + 2
+	NotificationRequestGetObjectsID  = NotificationBoolBase + 3
+	NotificationResponseGetObjectsID = NotificationBoolBase + 4
+	NotificationRequestChainID       = NotificationBoolBase + 6
+	NotificationResponseChainEntryID = NotificationBoolBase + 7
+	NotificationTxPoolID             = NotificationBoolBase + 8
+	NotificationNewLiteBlockID       = NotificationBoolBase + 9
+	NotificationMissingTxsID         = NotificationBoolBase + 10
 )
 
 type RawBlock struct {
-	Block 			[]byte 		`binary:"block"`
-	Transactions 	[][]byte 	`binary:"txs,array,omitempty"`
+	Block        []byte   `binary:"block"`
+	Transactions [][]byte `binary:"txs,array,omitempty"`
 }
 
 type NotificationNewBlock struct {
-	Block 					RawBlock	`binary:"b"`
-	CurrentBlockchainHeight uint32 		`binary:"current_blockchain_height"`
-	Hop             		uint32 	 	`binary:"hop"`
+	Block                   RawBlock `binary:"b"`
+	CurrentBlockchainHeight uint32   `binary:"current_blockchain_height"`
+	Hop                     uint32   `binary:"hop"`
 }
 
 type NotificationNewTransactions struct {
@@ -44,10 +44,10 @@ type NotificationRequestGetObjects struct {
 
 type NotificationResponseGetObjects struct {
 	// Exists in old legacy code in definition but not exists in notification
-	Transactions 			[]string 			`binary:"txs,omitempty"`
-	Blocks                  []RawBlock          `binary:"blocks,array"`
-	CurrentBlockchainHeight uint32 				`binary:"current_blockchain_height"`
-	MissedIds 				[]cryptonote.Hash 	`binary:"missed_ids,binary,omitempty"`
+	Transactions            []string          `binary:"txs,omitempty"`
+	Blocks                  []RawBlock        `binary:"blocks,array"`
+	CurrentBlockchainHeight uint32            `binary:"current_blockchain_height"`
+	MissedIds               []cryptonote.Hash `binary:"missed_ids,binary,omitempty"`
 }
 
 type NotificationTxPool struct {
@@ -55,9 +55,9 @@ type NotificationTxPool struct {
 }
 
 type NotificationNewLiteBlock struct {
-	CurrentBlockchainHeight uint32 	 	`binary:"current_blockchain_height"`
-	Hop                     uint32 	 	`binary:"hop"`
-	Block 					[]byte 		`binary:"block"`
+	CurrentBlockchainHeight uint32 `binary:"current_blockchain_height"`
+	Hop                     uint32 `binary:"hop"`
+	Block                   []byte `binary:"block"`
 }
 
 type NotificationRequestChain struct {
@@ -71,14 +71,14 @@ type NotificationResponseChainEntry struct {
 }
 
 var mapNotificationID = map[uint32]interface{}{
-	NotificationNewBlockID: 			NotificationNewBlock{},
-	NotificationNewTransactionsID: 		NotificationNewTransactions{},
-	NotificationRequestGetObjectsID:    NotificationRequestGetObjects{},
-	NotificationResponseGetObjectsID:   NotificationResponseGetObjects{},
-	NotificationTxPoolID: 				NotificationTxPool{},
-	NotificationNewLiteBlockID: 		NotificationNewLiteBlock{},
-	NotificationRequestChainID: 		NotificationRequestChain{},
-	NotificationResponseChainEntryID: 	NotificationResponseChainEntry{},
+	NotificationNewBlockID:           NotificationNewBlock{},
+	NotificationNewTransactionsID:    NotificationNewTransactions{},
+	NotificationRequestGetObjectsID:  NotificationRequestGetObjects{},
+	NotificationResponseGetObjectsID: NotificationResponseGetObjects{},
+	NotificationRequestChainID:       NotificationRequestChain{},
+	NotificationResponseChainEntryID: NotificationResponseChainEntry{},
+	NotificationTxPoolID:             NotificationTxPool{},
+	NotificationNewLiteBlockID:       NotificationNewLiteBlock{},
 }
 
 func parseNotification(lc *LevinCommand) (interface{}, error) {

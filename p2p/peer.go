@@ -37,10 +37,10 @@ type Peer struct {
 
 	protocol *LevinProtocol
 
-	remoteHeight uint32
+	remoteHeight       uint32
 	lastResponseHeight uint32
 
-	neededBlocks 	cryptonote.HashList
+	neededBlocks    cryptonote.HashList
 	requestedBlocks cryptonote.HashList
 }
 
@@ -116,6 +116,9 @@ func (p *Peer) listenForCommands(ctx context.Context) {
 	}
 }
 
+// handleNotification
+//
+// Receive notification from remote peer and handle it depend on the notification code.
 func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 	n.logger.Tracef("[%s] handeling notification: %d", p, cmd.Command)
 
@@ -166,7 +169,7 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 		}
 
 		p.remoteHeight = notification.Total
-		p.lastResponseHeight = notification.Start + uint32(len(notification.BlocksHashes) - 1)
+		p.lastResponseHeight = notification.Start + uint32(len(notification.BlocksHashes)-1)
 
 		if p.lastResponseHeight > p.remoteHeight {
 			p.state = PeerStateShutdown
@@ -484,20 +487,33 @@ func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
 		}
 
 		p.neededBlocks = neededBlocks
-	} else if p.lastResponseHeight < p.remoteHeight {
+	} else if p.lastResponseHeight < (p.remoteHeight - 1) {
 		if err := p.requestChain(); err != nil {
 			return err
 		}
 	} else {
-		if p.lastResponseHeight == p.remoteHeight - 1 && len(p.neededBlocks) == 0 && len(p.requestedBlocks) == 0 {
-			return errors.New("final condition failed")
+		if p.lastResponseHeight == p.remoteHeight-1 && len(p.neededBlocks) != 0 && len(p.requestedBlocks) != 0 {
+			return errors.New(fmt.Sprintf(
+				"request missing blocks final condition failed: \n"+
+					"response height: %d\n"+
+					"remote blockchain height: %d\n"+
+					"needed objects size: %d\n"+
+					"requested objects size: %d",
+				p.lastResponseHeight,
+				p.remoteHeight,
+				len(p.neededBlocks),
+				len(p.requestedBlocks),
+			))
 		}
 
-		// TODO: Request missing transactions
+		// TODO: Request missing pool transactions
+		// src/CryptoNoteProtocol/CryptoNoteProtocolHandler.cpp:907
 
 		p.state = PeerStateNormal
-		// h.logger.Infof("[%s] syncronized", p)
+		p.node.logger.Tracef("[%s] syncronized", p)
+
 		// TODO: On connection synchronized
+		// src/CryptoNoteProtocol/CryptoNoteProtocolHandler.cpp:911
 	}
 
 	return nil

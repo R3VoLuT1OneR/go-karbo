@@ -17,17 +17,17 @@ type HostConfig struct {
 	BindAddr string
 	Network  *config.Network
 
-	ListenConfig  *net.ListenConfig
+	ListenConfig *net.ListenConfig
 }
 
 type Node struct {
 	Config HostConfig
 	Core   *cryptonote.Core
 
-	dialer   *net.Dialer
-	logger   *log.Logger
-	wg       *sync.WaitGroup
-	ps 		 *peerStore
+	dialer *net.Dialer
+	logger *log.Logger
+	wg     *sync.WaitGroup
+	ps     *peerStore
 
 	listener *net.TCPListener
 }
@@ -38,7 +38,7 @@ func NewNode(core *cryptonote.Core, cfg HostConfig, logger *log.Logger) Node {
 
 	h := Node{
 		Config: cfg,
-		Core: core,
+		Core:   core,
 		logger: logger,
 	}
 
@@ -66,6 +66,9 @@ func (n *Node) defaults() {
 	}
 }
 
+// Run the node server
+// Listen for new connections on the defined port.
+// Send handshake requests to the seed nodes.
 func (n *Node) Run(ctx context.Context) error {
 	// listener, err := n.Config.ListenConfig.Listen(ctx, "tcp", n.Config.BindAddr)
 	addr, err := net.ResolveTCPAddr("tcp", n.Config.BindAddr)

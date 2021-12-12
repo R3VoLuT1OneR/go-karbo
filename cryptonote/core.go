@@ -12,7 +12,7 @@ type Core struct {
 	Network *config.Network
 
 	storage Store
-	logger *log.Logger
+	logger  *log.Logger
 }
 
 var (
@@ -27,7 +27,7 @@ func NewCore(network *config.Network, DB Store, logger *log.Logger) (*Core, erro
 	core := &Core{
 		Network: network,
 		storage: DB,
-		logger: logger,
+		logger:  logger,
 	}
 
 	if err := core.Init(); err != nil {
@@ -111,7 +111,6 @@ func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
 	// TODO Fetch top index block from current segment
 	// bool addOnTop = cache->getTopBlockIndex() == previousBlockIndex;
 
-
 	if err := c.storage.AppendBlock(b); err != nil {
 		return err
 	}
@@ -162,6 +161,9 @@ func (c *Core) TopBlock() (*Block, uint32, error) {
 	return block, height, nil
 }
 
+// BuildSparseChain
+// IDs of the first 10 blocks are sequential, next goes with pow(2,n) offset, like 2, 4, 8, 16, 32, 64 and so on, and
+// the last one is always genesis block
 func (c *Core) BuildSparseChain() ([]Hash, error) {
 	var list []Hash
 
@@ -191,7 +193,7 @@ func (c *Core) BuildSparseChain() ([]Hash, error) {
 		return nil, err
 	}
 
-	if !bytes.Equal(ghash[:], list[0][:]) && !bytes.Equal(ghash[:], list[len(list) - 1][:]) {
+	if !bytes.Equal(ghash[:], list[0][:]) && !bytes.Equal(ghash[:], list[len(list)-1][:]) {
 		list = append(list, *ghash)
 	}
 

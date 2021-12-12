@@ -10,18 +10,23 @@ import (
 )
 
 const (
+	// LevinSignature
 	// const uint64_t LEVIN_SIGNATURE = 0x0101010101012101LL;  //Bender's nightmare
-	LevinSignature uint64 = 0x0101010101012101  //Bender's nightmare
+	LevinSignature uint64 = 0x0101010101012101 //Bender's nightmare
 
+	// LevinPacketRequest
 	// const uint32_t LEVIN_PACKET_REQUEST = 0x00000001;
 	LevinPacketRequest uint32 = 0x00000001
 
+	// LevinPacketResponse
 	// const uint32_t LEVIN_PACKET_RESPONSE = 0x00000002;
 	LevinPacketResponse uint32 = 0x00000002
 
+	// LevinMaxPacketSize
 	// const uint32_t LEVIN_DEFAULT_MAX_PACKET_SIZE = 100000000;      //100MB by default
 	LevinMaxPacketSize uint32 = 100000000
 
+	// LevinProtocolVersion1
 	// const uint32_t LEVIN_PROTOCOL_VER_1 = 1;
 	LevinProtocolVersion1 uint32 = 1
 
@@ -33,20 +38,20 @@ type LevinProtocol struct {
 }
 
 type LevinCommand struct {
-	Command uint32
-	IsNotify bool
+	Command    uint32
+	IsNotify   bool
 	IsResponse bool
-	Payload []byte
+	Payload    []byte
 }
 
 type bucketHead struct {
-	Signature uint64
-	BodySize uint64
+	Signature        uint64
+	BodySize         uint64
 	HaveToReturnData bool
-	Command uint32
-	ReturnCode int32
-	Flags uint32
-	ProtocolVersion uint32
+	Command          uint32
+	ReturnCode       int32
+	Flags            uint32
+	ProtocolVersion  uint32
 }
 
 // Invoke sends command and waits for response
@@ -131,9 +136,9 @@ func (p *LevinProtocol) read() (*LevinCommand, error) {
 	}
 
 	return &LevinCommand{
-		Command: head.Command,
-		Payload: payload,
-		IsNotify: !head.HaveToReturnData,
+		Command:    head.Command,
+		Payload:    payload,
+		IsNotify:   !head.HaveToReturnData,
 		IsResponse: (head.Flags & LevinPacketResponse) == LevinPacketResponse,
 	}, nil
 }
@@ -156,7 +161,7 @@ func (p *LevinProtocol) write(
 		ProtocolVersion:  LevinProtocolVersion1,
 	}
 
-	message := make([]byte, LevinHeadSize+ pLen)
+	message := make([]byte, LevinHeadSize+pLen)
 
 	headBytes := head.encode()
 	copy(message[0:33], headBytes[:])

@@ -21,7 +21,7 @@ type Store interface {
 	// GetBlockHashByHeight provides block by hash
 	GetBlockHashByHeight(uint32) (*Hash, error)
 
-	// GetBlockHeightByHash returns height for specific block hash
+	// GetBlockIndexByHash returns height for specific block hash
 	GetBlockIndexByHash(*Hash) (uint32, error)
 
 	// GetBlockByHeight returns block by height
@@ -33,13 +33,13 @@ type Store interface {
 	// HasBlock verifies that block is saved in DB
 	HasBlock(*Hash) (bool, error)
 
-	// GetHeight of current saved blockchain
+	// TopIndex of current saved blockchain
 	TopIndex() (uint32, error)
 
-	// Empty checks if database is new and empty
-	Empty() (bool, error)
+	// IsEmpty checks if database is new and empty
+	IsEmpty() (bool, error)
 
-	// Close
+	// Close database connection
 	Close() error
 }
 
@@ -275,7 +275,7 @@ func (db *badgerDB) GetBlockByHeight(height uint32) (*Block, error) {
 	return b, nil
 }
 
-func (db *badgerDB) Empty() (bool, error) {
+func (db *badgerDB) IsEmpty() (bool, error) {
 	height, err := db.TopIndex()
 	if err != nil {
 		return false, err
