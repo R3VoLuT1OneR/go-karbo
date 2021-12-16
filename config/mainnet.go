@@ -8,12 +8,12 @@ func MainNet() *Network {
 
 	return &Network{
 		NetworkID: nid,
-		Name: "karbowanec",
-		Ticker: "KRB",
+		Name:      "karbowanec",
+		Ticker:    "KRB",
 
-		MaxBlockNumber: MaxBlockNumber,
+		MaxBlockNumber:   MaxBlockNumber,
 		MaxBlockBlobSize: MaxBlockBlobSize,
-		MaxTxSize: MaxTxSize,
+		MaxTxSize:        MaxTxSize,
 
 		PublicAddressBase58Prefix: 111,         // addresses start with "K"
 		TxProofBase58Prefix:       0x369488,    // (0x369488), starts with "Proof..."
@@ -21,11 +21,11 @@ func MainNet() *Network {
 		KeysSignatureBase58Prefix: 0xa7f2119,   // (0xa7f2119), starts with "SigV1..."
 
 		GenesisCoinbaseTxHex: "010a01ff0001fac484c69cd608029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101f904925cc23f86f9f3565188862275dc556a9bdfb6aec22c5aca7f0177c45ba8",
-		P2PMinimumVersion: P2PVersion4,
-		P2PCurrentVersion: P2PVersion4,
+		P2PMinimumVersion:    P2PVersion4,
+		P2PCurrentVersion:    P2PVersion4,
 
 		SeedNodes: []string{
-			"localhost:32347",
+			//"localhost:32347",
 			//"node.karbo.network:32347",
 			//"seed1.karbowanec.com:32347",
 			//"seed2.karbowanec.com:32347",

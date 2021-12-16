@@ -41,7 +41,7 @@ func TestBlock_Deserialize200054(t *testing.T) {
 
 	assert.Equal(t,
 		"6769241077017f26c0a170fd9630c292695039399b6a22edaf293b52f2d542fb",
-		block.Prev.String(),
+		block.PreviousBlockHash.String(),
 	)
 
 	hash, err := block.Hash()
@@ -64,7 +64,6 @@ func TestBlock_Deserialize200054(t *testing.T) {
 		thash.String(),
 	)
 
-
 	b, err := block.Serialize()
 	if err != nil {
 		panic(err)
@@ -85,7 +84,7 @@ func TestBlock_Deserialize105385(t *testing.T) {
 
 	assert.Equal(t,
 		"cc20ae5bd6c75e25a0885bcbb058e31c5b344dedc43a7f50c8ac6f1eaada795f",
-		block.Prev.String(),
+		block.PreviousBlockHash.String(),
 	)
 
 	hash, err := block.Hash()
@@ -107,7 +106,6 @@ func TestBlock_Deserialize105385(t *testing.T) {
 		"effd9d3ffc37dc92f1f9721858c8ec11333c74ab74dcb60fc32926aa0dd51d8b",
 		thash.String(),
 	)
-
 
 	b, err := block.Serialize()
 	if err != nil {
@@ -134,7 +132,7 @@ func TestBlock_Deserialize60000(t *testing.T) {
 
 	assert.Equal(t,
 		"4cab277ce1d96569e6ec406c589f08468a490aafd729fccae3b46c7ba4cce3a7",
-		block.Prev.String(),
+		block.PreviousBlockHash.String(),
 	)
 
 	hash, err := block.Hash()
@@ -156,7 +154,6 @@ func TestBlock_Deserialize60000(t *testing.T) {
 		"20c2e650f05d3271a5064af2dcdada7ff1f79d8791dfb390b3f0a010942aba39",
 		thash.String(),
 	)
-
 
 	b, err := block.Serialize()
 	if err != nil {
@@ -190,7 +187,7 @@ func TestBlock_Deserialize(t *testing.T) {
 
 	assert.Equal(t,
 		"3125b79e4a42f8d4d2fc4dffea8442e185ebda940ecd4d3b449056a4ea0efea4",
-		block1.BlockHeader.Prev.String(),
+		block1.BlockHeader.PreviousBlockHash.String(),
 	)
 
 	assert.Equal(t, config.TransactionVersion1, block1.CoinbaseTransaction.Version)
@@ -211,7 +208,7 @@ func TestBlock_Deserialize(t *testing.T) {
 	assert.Equal(t, uint32(1748233149), block2.BlockHeader.Nonce)
 	assert.Equal(t, uint64(1464595535), block2.BlockHeader.Timestamp)
 
-	assert.Equal(t, hash1.String(), block2.Prev.String())
+	assert.Equal(t, hash1.String(), block2.PreviousBlockHash.String())
 
 	assert.Equal(t, config.TransactionVersion1, block2.CoinbaseTransaction.Version)
 	assert.Equal(t, uint64(12), block2.CoinbaseTransaction.UnlockHeight)

@@ -29,6 +29,7 @@ type Peer struct {
 	// TODO: Make sure we generate local peer ID and updating external IDs
 	ID uint64
 
+	// Node to which peer connected to. Our main server node.
 	node    *Node
 	version byte
 	state   byte
@@ -64,10 +65,19 @@ func NewPeerFromTCPAddress(ctx context.Context, n *Node, addr string) (*Peer, er
 	return &peer, nil
 }
 
-func NewPeerFromIncomingConnection(conn net.Conn) *Peer {
+func NewPeerFromIncomingConnection(node *Node, conn net.Conn) *Peer {
 	return &Peer{
+		node:     node,
 		protocol: &LevinProtocol{conn},
 	}
+}
+
+func (p *Peer) Shutdown() {
+	p.state = PeerStateShutdown
+}
+
+func (p *Peer) String() string {
+	return fmt.Sprintf("%d", p.ID)
 }
 
 func (p *Peer) listenForCommands(ctx context.Context) {
@@ -145,16 +155,48 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 		notification := nt.(NotificationTxPool)
 
 		n.logger.Debugf("[%s] notification tx pool, size: %d", p, len(notification.Transactions))
+	case NotificationRequestChain:
+		notification := nt.(NotificationRequestChain)
+
+		// Verify more than 0 requested blocks
+		if len(notification.Blocks) == 0 {
+			p.Shutdown()
+			return errors.New(fmt.Sprintf("[%s] request chain with 0 blocks", p))
+		}
+
+		genesisBlockHash, err := p.node.Core.GenesisBlockHash()
+		if err != nil {
+			return fmt.Errorf("[%s] unexpected error: %w", p, err)
+		}
+
+		// Make sure genesis blocks belongs to same network
+		if *genesisBlockHash != notification.Blocks[len(notification.Blocks)-1] {
+			p.Shutdown()
+			return errors.New(fmt.Sprintf("[%s] request chain genesis block not match", p))
+		}
+
+		// Get max index of this node blockchain
+		topIndex, err := p.node.Core.TopIndex()
+		if err != nil {
+			return fmt.Errorf("[%s] unexpected error: %w", p, err)
+		}
+
+		// TODO: Build response chain entry and response to requested peer
+		//responseChainEntry := &NotificationResponseChainEntry{
+		//	TotalHeight: topIndex + 1,
+		//}
+
+		n.logger.Tracef("[%s] request chain %d blocks.", p, len(notification.Blocks))
 	case NotificationResponseChainEntry:
 		notification := nt.(NotificationResponseChainEntry)
 
 		n.logger.Tracef(
 			"[%s] notification response chain entry, start: %d, total: %d, blocks: %d",
-			p, notification.Start, notification.Total, len(notification.BlocksHashes),
+			p, notification.StartHeight, notification.TotalHeight, len(notification.BlocksHashes),
 		)
 
 		if len(notification.BlocksHashes) == 0 {
-			p.state = PeerStateShutdown
+			p.Shutdown()
 			return errors.New(fmt.Sprintf("[%s] received empty blocks in response chain enrty", p))
 		}
 
@@ -164,20 +206,20 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 			return err
 		}
 		if !hasFirstBlock {
-			p.state = PeerStateShutdown
+			p.Shutdown()
 			return errors.New(fmt.Sprintf("[%s] hash %s missing in our blockchain", p, firstHash.String()))
 		}
 
-		p.remoteHeight = notification.Total
-		p.lastResponseHeight = notification.Start + uint32(len(notification.BlocksHashes)-1)
+		p.remoteHeight = notification.TotalHeight
+		p.lastResponseHeight = notification.StartHeight + uint32(len(notification.BlocksHashes)-1)
 
 		if p.lastResponseHeight > p.remoteHeight {
-			p.state = PeerStateShutdown
+			p.Shutdown()
 			return errors.New(
 				fmt.Sprintf(
-					"[%s] sent wrong response chain entry, with Total = %d, Start = %d, blocks = %d", p,
-					notification.Start,
-					notification.Total,
+					"[%s] sent wrong response chain entry, with TotalHeight = %d, StartHeight = %d, blocks = %d", p,
+					notification.StartHeight,
+					notification.TotalHeight,
 					len(notification.BlocksHashes),
 				),
 			)
@@ -273,12 +315,12 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 	p.node.logger.Tracef("[%s] response to get objects", p)
 
 	if len(nt.Blocks) == 0 {
-		p.state = PeerStateShutdown
+		p.Shutdown()
 		return errors.New(fmt.Sprintf("[%s] got zero blocks on get objects", p))
 	}
 
 	if p.lastResponseHeight > nt.CurrentBlockchainHeight {
-		p.state = PeerStateShutdown
+		p.Shutdown()
 		return errors.New(fmt.Sprintf(
 			"[%s] got wrong currentBlockchainHeight = %d, current = %d", p,
 			nt.CurrentBlockchainHeight,
@@ -295,7 +337,7 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 		block := cryptonote.Block{}
 		rawBlockReader := bytes.NewReader(rawBlock.Block)
 		if err := block.Deserialize(rawBlockReader); err != nil {
-			p.state = PeerStateShutdown
+			p.Shutdown()
 			height, _ := p.node.Core.TopIndex()
 			blockHeight := int(height) + 1 + i
 			_ = ioutil.WriteFile(fmt.Sprintf("./block_%d.dat", blockHeight), rawBlock.Block, 0644)
@@ -310,12 +352,12 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 		}
 
 		if !p.requestedBlocks.Has(hash) {
-			p.state = PeerStateShutdown
+			p.Shutdown()
 			return errors.New(fmt.Sprintf("[%s] got not requested block #%d '%s'", p, i, hash.String()))
 		}
 
 		if len(block.TransactionsHashes) != len(rawBlock.Transactions) {
-			p.state = PeerStateShutdown
+			p.Shutdown()
 			return errors.New(fmt.Sprintf(
 				"[%s] got wrong block transactions size. block: %s block tx: %d raw tx: %d",
 				p, hash.String(), len(block.TransactionsHashes), len(rawBlock.Transactions),
@@ -327,7 +369,7 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 	}
 
 	if len(p.requestedBlocks) > 0 {
-		p.state = PeerStateShutdown
+		p.Shutdown()
 		return errors.New(fmt.Sprintf(
 			"[%s] got not all requested objectes, missing %d", p, len(p.requestedBlocks),
 		))
@@ -517,8 +559,4 @@ func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
 	}
 
 	return nil
-}
-
-func (p *Peer) String() string {
-	return fmt.Sprintf("%d", p.ID)
 }

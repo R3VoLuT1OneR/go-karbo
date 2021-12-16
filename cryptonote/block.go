@@ -23,11 +23,11 @@ type ParentBlock struct {
 }
 
 type BlockHeader struct {
-	MajorVersion 		byte
-	MinorVersion 		byte
-	Nonce        		uint32
-	Timestamp    		uint64
-	Prev         		Hash
+	MajorVersion      byte
+	MinorVersion      byte
+	Nonce             uint32
+	Timestamp         uint64
+	PreviousBlockHash Hash
 }
 
 type Block struct {
@@ -37,8 +37,8 @@ type Block struct {
 	CoinbaseTransaction Transaction
 	TransactionsHashes  []Hash
 
-	hash 				*Hash
-	hashTransactions 	*Hash
+	hash             *Hash
+	hashTransactions *Hash
 }
 
 func (b *Block) Hash() (*Hash, error) {
@@ -226,7 +226,7 @@ func (h *BlockHeader) deserialize(reader *bytes.Reader) error {
 
 	h.MajorVersion = uint8(majorVersion)
 	h.MinorVersion = uint8(minorVersion)
-	h.Prev = prev
+	h.PreviousBlockHash = prev
 
 	if ts != 0 {
 		h.Timestamp = ts
@@ -251,11 +251,11 @@ func (h *BlockHeader) serialize() ([]byte, error) {
 
 	switch h.MajorVersion {
 	case config.BlockMajorVersion2, config.BlockMajorVersion3:
-		serialized.Write(h.Prev[:])
+		serialized.Write(h.PreviousBlockHash[:])
 	case config.BlockMajorVersion1, config.BlockMajorVersion4:
 		written = binary.PutUvarint(buf, h.Timestamp)
 		serialized.Write(buf[:written])
-		serialized.Write(h.Prev[:])
+		serialized.Write(h.PreviousBlockHash[:])
 		if err := binary.Write(&serialized, binary.LittleEndian, h.Nonce); err != nil {
 			return nil, errors.New("failed to write block nonce")
 		}
@@ -372,7 +372,7 @@ func (pb *ParentBlock) deserialize(r *bytes.Reader) error {
 		return errors.New("can't get extra merge mining tag")
 	}
 
-	if tef.MiningTag.Depth > 8 * 32 {
+	if tef.MiningTag.Depth > 8*32 {
 		return errors.New("wrong merge mining tag depth")
 	}
 
@@ -437,7 +437,7 @@ func treeDepth(count int) int {
 	depth := 0
 
 	for i := int(unsafe.Sizeof(count)) << 2; i > 0; i >>= 1 {
-		if count >> i > 0 {
+		if count>>i > 0 {
 			count >>= i
 			depth += i
 		}

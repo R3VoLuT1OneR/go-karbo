@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
 	log "github.com/sirupsen/logrus"
+	"sync"
 )
 
 type Core struct {
@@ -13,6 +14,12 @@ type Core struct {
 
 	storage Store
 	logger  *log.Logger
+
+	// chains contains all the chains belongs to the current node
+	chains []*Chain
+
+	// bcLock used for locking blockchain for changes
+	bcLock sync.Mutex
 }
 
 var (
@@ -45,14 +52,18 @@ func (c *Core) Init() error {
 	return nil
 }
 
+// AddBlock used to add next block to the blockchain
 func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
+	c.bcLock.Lock()
+	defer c.bcLock.Unlock()
+
 	index := b.Index()
 	hash, err := b.Hash()
 	if err != nil {
 		return err
 	}
 
-	c.logger.Tracef("adding block: %d (%s)", index, hash.String())
+	// c.logger.Tracef("adding block: %d (%s)", index, hash.String())
 
 	hasBlock, err := c.storage.HasBlock(hash)
 	if err != nil {
@@ -69,10 +80,10 @@ func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
 	}
 
 	// TODO: Check that a block is not orphaned
-	//if c.findSegmentContainingBlock(hash) == 0 {
-	//	c.logger.Errorf("rejected as orphaned: %d (%s)", index, hash.String())
-	//	return ErrAddBlockRejectedAsOrphaned
-	//}
+	if c.findSegmentContainingBlock(hash) == 0 {
+		c.logger.Errorf("rejected as orphaned: %d (%s)", index, hash.String())
+		return ErrAddBlockRejectedAsOrphaned
+	}
 
 	//transactions, transactionsSize, err := c.deserializeTransactions(rawTransactions)
 	_, _, err = c.deserializeTransactions(rawTransactions)
@@ -96,9 +107,9 @@ func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
 
 	//blockSize := transactionsSize + coinbaseTransactionSize
 	//
-	//prevBlockIndex, err := c.BlockIndex(&b.Prev)
+	//prevBlockIndex, err := c.BlockHeight(&b.PreviousBlockHash)
 	//if err != nil {
-	//	c.logger.Errorf("failed to get prev block (%s) index: %s", b.Prev.String(), err)
+	//	c.logger.Errorf("failed to get prev block (%s) index: %s", b.PreviousBlockHash.String(), err)
 	//	return err
 	//}
 	//
@@ -137,14 +148,35 @@ func (c *Core) TopIndex() (uint32, error) {
 	return height, err
 }
 
-func (c *Core) BlockIndex(h *Hash) (uint32, error) {
+func (c *Core) BlockHeight(h *Hash) (uint32, error) {
 	i, err := c.storage.GetBlockIndexByHash(h)
 
 	if err != nil {
 		return 0, err
 	}
 
-	return i, err
+	return i, nil
+}
+
+// BlockByHeight returns block by height
+func (c *Core) BlockByHeight(h uint32) (*Block, error) {
+	b, err := c.storage.GetBlockByHeight(h)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func (c *Core) GenesisBlockHash() (h *Hash, err error) {
+	if b, err := c.storage.GetBlockByHeight(0); err == nil {
+		if h, err = b.Hash(); err == nil {
+			return h, nil
+		}
+	}
+
+	return nil, fmt.Errorf("failed to get genesis block: %w", err)
 }
 
 func (c *Core) TopBlock() (*Block, uint32, error) {
@@ -162,8 +194,7 @@ func (c *Core) TopBlock() (*Block, uint32, error) {
 }
 
 // BuildSparseChain
-// IDs of the first 10 blocks are sequential, next goes with pow(2,n) offset, like 2, 4, 8, 16, 32, 64 and so on, and
-// the last one is always genesis block
+// IDs pow(2,n) offset, like 2, 4, 8, 16, 32, 64 and so on, and the last one is always genesis block
 func (c *Core) BuildSparseChain() ([]Hash, error) {
 	var list []Hash
 
@@ -232,6 +263,12 @@ func (c *Core) deserializeTransactions(rawTransactions [][]byte) ([]Transaction,
 	}
 
 	return transactions, size, nil
+}
+
+// findChainContainingBlock returns chain containing block by the hash
+func (c *Core) findChainContainingBlockHash(*Hash) *Chain {
+
+	return nil
 }
 
 // ------------------ Experiments ------------------------------

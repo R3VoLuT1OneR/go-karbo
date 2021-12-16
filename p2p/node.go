@@ -124,16 +124,22 @@ func (n *Node) runListener(ctx context.Context) {
 
 func (n *Node) handleIncomingConnection(ctx context.Context, conn net.Conn) {
 	// TODO: Enabling handeling incomming connections
-	return
+	//return
 
-	//peer := NewPeerFromIncomingConnection(conn)
-	//
+	peer := NewPeerFromIncomingConnection(n, conn)
+
 	//// TODO: Add peer to peerstore. Make sure it is not exists.
 	//
-	//n.wg.Add(1)
-	//defer n.wg.Done()
-	//
-	//n.listenForCommands(ctx, peer)
+	n.wg.Add(1)
+	defer n.wg.Done()
+
+	peer.listenForCommands(ctx)
+
+	if err := n.ps.toGrey(peer); err != nil {
+		n.logger.Warnf("peer remove failed: %s", err)
+	}
+
+	n.logger.Debugf("[%16x] sync closed", peer.ID)
 }
 
 func (n *Node) syncWithAddr(c context.Context, addr string) {

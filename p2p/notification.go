@@ -65,8 +65,8 @@ type NotificationRequestChain struct {
 }
 
 type NotificationResponseChainEntry struct {
-	Start        uint32            `binary:"start_height"`
-	Total        uint32            `binary:"total_height"`
+	StartHeight  uint32            `binary:"start_height"`
+	TotalHeight  uint32            `binary:"total_height"`
 	BlocksHashes []cryptonote.Hash `binary:"m_block_ids,binary"`
 }
 
