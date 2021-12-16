@@ -1,5 +1,5 @@
 # Karbo Go
-Karbo algorithms and tools implemented in golang.
+Golang's implementation of [Karbo](https://github.com/Karbovanets/karbo) cryptocurrency.
 
 ### Running
 
