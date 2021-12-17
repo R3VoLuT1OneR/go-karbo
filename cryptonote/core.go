@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/r3volut1oner/go-karbo/config"
 	log "github.com/sirupsen/logrus"
 	"sync"
 )
 
 type Core struct {
-	Network *config.Network
+	BlockChain BlockChain
 
 	storage Store
 	logger  *log.Logger
@@ -27,11 +26,11 @@ var (
 	ErrAddBlockRejectedAsOrphaned         = errors.New("rejected as orphaned")
 )
 
-func NewCore(network *config.Network, DB Store, logger *log.Logger) (*Core, error) {
+func NewCore(bc BlockChain, DB Store, logger *log.Logger) (*Core, error) {
 	core := &Core{
-		Network: network,
-		storage: DB,
-		logger:  logger,
+		BlockChain: bc,
+		storage:    DB,
+		logger:     logger,
 	}
 
 	if err := core.Init(); err != nil {
@@ -89,11 +88,11 @@ func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
 	}
 
 	coinbaseTransactionSize := b.CoinbaseTransaction.Size()
-	if coinbaseTransactionSize > c.Network.MaxTxSize {
+	if coinbaseTransactionSize > c.BlockChain.Network.MaxTxSize {
 		c.logger.Errorf(fmt.Sprintf(
 			"coinbase transaction size %d bigger than allowed %d",
 			coinbaseTransactionSize,
-			c.Network.MaxTxSize,
+			c.BlockChain.Network.MaxTxSize,
 		))
 		return ErrAddBlockTransactionSizeMax
 	}
@@ -220,7 +219,7 @@ func (c *Core) BuildSparseChain() ([]Hash, error) {
 }
 
 func (c *Core) initDB() error {
-	if err := c.storage.Init(c.Network); err != nil {
+	if err := c.storage.Init(&c.BlockChain); err != nil {
 		return err
 	}
 
@@ -231,7 +230,7 @@ func (c *Core) deserializeTransactions(rawTransactions [][]byte) ([]Transaction,
 	var size uint64
 	var transactions []Transaction
 
-	maxTxSize := c.Network.MaxTxSize
+	maxTxSize := c.BlockChain.Network.MaxTxSize
 	for i, rt := range rawTransactions {
 		var t Transaction
 		ts := uint64(len(rt))

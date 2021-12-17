@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/dgraph-io/badger/v3"
-	"github.com/r3volut1oner/go-karbo/config"
 )
 
 var (
@@ -16,7 +15,7 @@ var (
 
 type Store interface {
 	// Init database files with genesis block if empty.
-	Init(n *config.Network) error
+	Init(bc *BlockChain) error
 
 	// GetBlockHashByHeight provides block by hash
 	GetBlockHashByHeight(uint32) (*Hash, error)
@@ -91,8 +90,8 @@ func NewBadgerDB() (Store, error) {
 	}, nil
 }
 
-func (db *badgerDB) Init(n *config.Network) error {
-	block, err := GenerateGenesisBlock(n)
+func (db *badgerDB) Init(bc *BlockChain) error {
+	block, err := bc.GenesisBlock()
 	if err != nil {
 		return err
 	}

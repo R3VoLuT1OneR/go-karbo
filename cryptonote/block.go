@@ -3,7 +3,6 @@ package cryptonote
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"github.com/r3volut1oner/go-karbo/config"
 	"unsafe"
@@ -355,28 +354,6 @@ func (pb *ParentBlock) deserialize(r *bytes.Reader) error {
 	pb.BlockchainBranch = blockchainBranch
 
 	return nil
-}
-
-func GenerateGenesisBlock(network *config.Network) (*Block, error) {
-	var genesisBlock Block
-
-	genesisTransactionBytes, err := hex.DecodeString(network.GenesisCoinbaseTxHex)
-	reader := bytes.NewReader(genesisTransactionBytes)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if err := genesisBlock.CoinbaseTransaction.Deserialize(reader); err != nil {
-		return nil, err
-	}
-
-	genesisBlock.MajorVersion = config.BlockMajorVersion1
-	genesisBlock.MinorVersion = config.BlockMinorVersion0
-	genesisBlock.Timestamp = 0
-	genesisBlock.Nonce = 70
-
-	return &genesisBlock, nil
 }
 
 //size_t tree_depth(size_t count) {

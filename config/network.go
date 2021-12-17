@@ -1,6 +1,40 @@
 package config
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+)
+
+// Network represents network params
+type Network struct {
+	NetworkID uuid.UUID
+
+	MaxBlockNumber   uint64
+	MaxBlockBlobSize uint64
+	MaxTxSize        uint64
+
+	Name                 string
+	Ticker               string
+	GenesisCoinbaseTxHex string
+	GenesisTimestamp     uint64
+	GenesisNonce         uint32
+
+	// PublicAddressBase58Prefix address prefix
+	PublicAddressBase58Prefix uint64
+
+	TxProofBase58Prefix uint64
+
+	ReserveProofBase58Prefix uint64
+
+	KeysSignatureBase58Prefix uint64
+
+	P2PMinimumVersion byte
+	P2PCurrentVersion byte
+
+	CurrentTransactionVersion byte
+
+	// SeadNodes List of basic sead nodes
+	SeedNodes []string
+}
 
 // MainNet provides mainnet network params
 func MainNet() *Network {
@@ -21,8 +55,11 @@ func MainNet() *Network {
 		KeysSignatureBase58Prefix: 0xa7f2119,   // (0xa7f2119), starts with "SigV1..."
 
 		GenesisCoinbaseTxHex: "010a01ff0001fac484c69cd608029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101f904925cc23f86f9f3565188862275dc556a9bdfb6aec22c5aca7f0177c45ba8",
-		P2PMinimumVersion:    P2PVersion4,
-		P2PCurrentVersion:    P2PVersion4,
+		GenesisTimestamp:     0,
+		GenesisNonce:         70,
+
+		P2PMinimumVersion: P2PVersion4,
+		P2PCurrentVersion: P2PVersion4,
 
 		SeedNodes: []string{
 			//"localhost:32347",
@@ -39,4 +76,11 @@ func MainNet() *Network {
 			//"144.91.94.65:32347",
 		},
 	}
+}
+
+func TestNet() *Network {
+	testnet := MainNet()
+	testnet.GenesisNonce = 71
+
+	return testnet
 }

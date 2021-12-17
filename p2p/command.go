@@ -108,7 +108,7 @@ func NewHandshakeRequest(core *cryptonote.Core) (*HandshakeRequest, error) {
 		return nil, err
 	}
 
-	nodeData, err := newBasicNodeData(core.Network)
+	nodeData, err := newBasicNodeData(core.BlockChain.Network)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func NewHandshakeResponse(h *Node) (*HandshakeResponse, error) {
 		return nil, err
 	}
 
-	nodeData, err := newBasicNodeData(h.Core.Network)
+	nodeData, err := newBasicNodeData(h.Core.BlockChain.Network)
 	if err != nil {
 		return nil, err
 	}

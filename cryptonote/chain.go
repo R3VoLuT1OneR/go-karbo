@@ -1,19 +1,48 @@
 package cryptonote
 
-type chain struct {
-	Blocks []*Block
+import (
+	"bytes"
+	"encoding/hex"
+	"github.com/r3volut1oner/go-karbo/config"
+)
 
-	StartIndex int32
-	EndIndex   int32
+type BlockChain struct {
+	// Network is current network configurations, must stay immutable
+	Network *config.Network
 
-	Parent *Chain
+	// genesisBlock used for caching genesis block
+	genesisBlock *Block
 }
 
-type Chain interface {
+// NewBlockChain generates basic blockchain object
+func NewBlockChain(network *config.Network) BlockChain {
+	bc := BlockChain{
+		Network: network,
+	}
+
+	return bc
 }
 
-func NewChain() (Chain, error) {
-	chain := &chain{}
+// GenesisBlock returns first basic block of the blockchain
+func (bc *BlockChain) GenesisBlock() (*Block, error) {
+	if bc.genesisBlock == nil {
+		bc.genesisBlock = &Block{}
+		genesisTransactionBytes, err := hex.DecodeString(bc.Network.GenesisCoinbaseTxHex)
+		reader := bytes.NewReader(genesisTransactionBytes)
 
-	return chain, nil
+		if err != nil {
+			return nil, err
+		}
+
+		if err := bc.genesisBlock.CoinbaseTransaction.Deserialize(reader); err != nil {
+			return nil, err
+		}
+
+		bc.genesisBlock.MajorVersion = config.BlockMajorVersion1
+		bc.genesisBlock.MinorVersion = config.BlockMinorVersion0
+		bc.genesisBlock.Timestamp = bc.Network.GenesisTimestamp
+		bc.genesisBlock.Nonce = bc.Network.GenesisNonce
+	}
+
+	return bc.genesisBlock, nil
 }
