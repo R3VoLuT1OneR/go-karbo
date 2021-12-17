@@ -4,17 +4,18 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"github.com/r3volut1oner/go-karbo/crypto/hash"
 )
 
-type Hash [32]byte
+const HashLength = 32
+
+type Hash [HashLength]byte
 
 type HashList []Hash
 
-func (h *Hash) FromBytes(b *[]byte) {
-	hashed := hash.Keccak(b)
-	copy(h[:32], hashed[:32])
+func (h *Hash) FromBytes(b []byte) {
+	hashed := hash.Keccak(&b)
+	copy(h[:HashLength], hashed[:HashLength])
 }
 
 func (h *Hash) Read(r *bytes.Reader) error {
@@ -36,22 +37,21 @@ func HashFromBytes(b []byte) Hash {
 	return h
 }
 
-func (hl HashList) merkleRootHash() (*Hash, error)  {
+func (hl HashList) merkleRootHash() *Hash {
 	switch len(hl) {
 	case 0:
-		return nil, errors.New("at least 1 hash must be provided")
+		// return nil, errors.New("at least 1 hash must be provided")
 	case 1:
 		singleHash := hl[0]
-		return &singleHash, nil
+		return &singleHash
 	case 2:
 		h := HashFromBytes(append(hl[0][:], hl[1][:]...))
-		return &h, nil
+		return &h
 	default:
 		cnt := 2 // Largest power of two
-		for cnt << 1 < len(hl) {
+		for cnt<<1 < len(hl) {
 			cnt <<= 1
 		}
-
 
 		readyNum := (2 * cnt) - len(hl)
 		tempList := make(HashList, readyNum)
@@ -71,8 +71,10 @@ func (hl HashList) merkleRootHash() (*Hash, error)  {
 			tempList = newTempList
 		}
 
-		return &tempList[0], nil
+		return &tempList[0]
 	}
+
+	return nil
 }
 
 func (hl HashList) TreeHashFromBranch(leaf Hash) Hash {

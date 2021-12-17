@@ -26,7 +26,7 @@ func (i InputCoinbase) sigCount() int {
 }
 
 type InputKey struct {
-	Amount uint64
+	Amount        uint64
 	OutputIndexes []uint32
 	KeyImage
 }
@@ -36,9 +36,9 @@ func (i InputKey) sigCount() int {
 }
 
 type InputMultisignature struct {
-	Amount uint64
+	Amount         uint64
 	SignatureCount uint8
-	OutputIndex uint32
+	OutputIndex    uint32
 }
 
 func (i InputMultisignature) sigCount() int {
@@ -50,7 +50,7 @@ type OutputKey struct {
 }
 
 type OutputMultisignature struct {
-	Keys []Key
+	Keys                    []Key
 	RequiredSignaturesCount byte
 }
 
@@ -87,18 +87,11 @@ type Transaction struct {
 	hash *Hash
 }
 
-func (t *Transaction) Serialize() ([]byte, error) {
-	pb, err := t.TransactionPrefix.serialize()
-	if err != nil {
-		return nil, err
-	}
+func (t *Transaction) Serialize() []byte {
+	pb := t.TransactionPrefix.serialize()
+	sb := t.TransactionSignatures.serialize(t)
 
-	sb, err := t.TransactionSignatures.serialize(t)
-	if err != nil {
-		return nil, err
-	}
-
-	return append(pb, sb...), nil
+	return append(pb, sb...)
 }
 
 func (t *Transaction) Deserialize(r *bytes.Reader) error {
@@ -113,44 +106,29 @@ func (t *Transaction) Deserialize(r *bytes.Reader) error {
 	return nil
 }
 
-func (t *Transaction) Size() (uint64, error) {
-	b, err := t.Serialize()
-	if err != nil {
-		return 0, err
-	}
-
-	return uint64(len(b)), err
+func (t *Transaction) Size() uint64 {
+	return uint64(len(t.Serialize()))
 }
 
-func (t *Transaction) Hash() (*Hash, error) {
+func (t *Transaction) Hash() *Hash {
 	if t.hash == nil {
-		transactionBytes, err := t.Serialize()
-		if err != nil {
-			return nil, err
-		}
-
 		t.hash = new(Hash)
-		t.hash.FromBytes(&transactionBytes)
+		t.hash.FromBytes(t.Serialize())
 	}
 
-	return t.hash, nil
+	return t.hash
 }
 
-func (t *BaseTransaction) Hash() (*Hash, error) {
+func (t *BaseTransaction) Hash() *Hash {
 	if t.hash == nil {
-		b, err := t.TransactionPrefix.serialize()
-		if err != nil {
-			return nil, err
-		}
-
 		t.hash = new(Hash)
-		t.hash.FromBytes(&b)
+		t.hash.FromBytes(t.TransactionPrefix.serialize())
 	}
 
-	return t.hash, nil
+	return t.hash
 }
 
-func (tp *TransactionPrefix) serialize() ([]byte, error) {
+func (tp *TransactionPrefix) serialize() []byte {
 	var serialized bytes.Buffer
 
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
@@ -190,11 +168,8 @@ func (tp *TransactionPrefix) serialize() ([]byte, error) {
 			}
 
 			// Write key image
-			if err := binary.Write(&serialized, binary.LittleEndian, inputKey.KeyImage); err != nil {
-				return nil, err
-			}
+			_ = binary.Write(&serialized, binary.LittleEndian, inputKey.KeyImage)
 		default:
-			return nil, errors.New(fmt.Sprintf("unknown input type: %T", input))
 		}
 	}
 
@@ -210,7 +185,6 @@ func (tp *TransactionPrefix) serialize() ([]byte, error) {
 			serialized.WriteByte(TxTagKey)
 			serialized.Write(output.Target.(OutputKey).Bytes()[:])
 		default:
-			return nil, errors.New(fmt.Sprintf("unknown output target type: %T", output.Target))
 		}
 	}
 
@@ -218,7 +192,7 @@ func (tp *TransactionPrefix) serialize() ([]byte, error) {
 	serialized.Write(varIntBuf[:written])
 	serialized.Write(tp.Extra[:])
 
-	return serialized.Bytes(), nil
+	return serialized.Bytes()
 }
 
 func (tp *TransactionPrefix) deserialize(br *bytes.Reader) error {
@@ -292,7 +266,7 @@ func (tp *TransactionPrefix) deserialize(br *bytes.Reader) error {
 			tp.Inputs[inputIndex] = InputKey{
 				Amount:        amount,
 				OutputIndexes: OutputIndexes,
-				KeyImage: Key,
+				KeyImage:      Key,
 			}
 		case TxTagMultisignature:
 			// TODO: Implement multisig
@@ -357,7 +331,7 @@ func (tp *TransactionPrefix) deserialize(br *bytes.Reader) error {
 	return nil
 }
 
-func (ts TransactionSignatures) serialize(t *Transaction) ([]byte, error) {
+func (ts TransactionSignatures) serialize(t *Transaction) []byte {
 	var serialized bytes.Buffer
 
 	for i, input := range t.TransactionPrefix.Inputs {
@@ -367,18 +341,12 @@ func (ts TransactionSignatures) serialize(t *Transaction) ([]byte, error) {
 			continue
 		}
 
-		if sigSize != len(ts[i]) {
-			return nil, errors.New("unexpected signatures size")
-		}
-
 		for _, sig := range ts[i] {
-			if err := binary.Write(&serialized, binary.LittleEndian, sig); err != nil {
-				return nil, err
-			}
+			_ = binary.Write(&serialized, binary.LittleEndian, sig)
 		}
 	}
 
-	return serialized.Bytes(), nil
+	return serialized.Bytes()
 }
 
 func (ts *TransactionSignatures) deserialize(br *bytes.Reader, t *Transaction) error {

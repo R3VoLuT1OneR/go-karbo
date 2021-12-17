@@ -97,10 +97,7 @@ func (db *badgerDB) Init(n *config.Network) error {
 		return err
 	}
 
-	genesisHash, err := block.Hash()
-	if err != nil {
-		return err
-	}
+	genesisHash := block.Hash()
 
 	height, err := db.GetBlockIndexByHash(genesisHash)
 
@@ -118,15 +115,8 @@ func (db *badgerDB) Init(n *config.Network) error {
 }
 
 func (db *badgerDB) AppendBlock(b *Block) error {
-	hash, err := b.Hash()
-	if err != nil {
-		return err
-	}
-
-	payload, err := b.Serialize()
-	if err != nil {
-		return err
-	}
+	hash := b.Hash()
+	payload := b.Serialize()
 
 	return db.badger.Update(func(txn *badger.Txn) error {
 		keyHeight := keyHeight()

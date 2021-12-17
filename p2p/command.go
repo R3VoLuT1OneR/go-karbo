@@ -14,13 +14,13 @@ import (
 )
 
 const (
-	CommandPoolBase 			= 1000
-	CommandHandshake 			= CommandPoolBase + 1
-	CommandTimedSync 			= CommandPoolBase + 2
-	CommandPing 				= CommandPoolBase + 3
-	CommandRequestStatInfo 		= CommandPoolBase + 4
-	CommandRequestNetworkState 	= CommandPoolBase + 5
-	CommandRequestPeerID 		= CommandPoolBase + 6
+	CommandPoolBase            = 1000
+	CommandHandshake           = CommandPoolBase + 1
+	CommandTimedSync           = CommandPoolBase + 2
+	CommandPing                = CommandPoolBase + 3
+	CommandRequestStatInfo     = CommandPoolBase + 4
+	CommandRequestNetworkState = CommandPoolBase + 5
+	CommandRequestPeerID       = CommandPoolBase + 6
 )
 
 type BasicNodeData struct {
@@ -37,7 +37,7 @@ type SyncData struct {
 }
 
 type NetworkAddress struct {
-	IP uint32
+	IP   uint32
 	Port uint32
 }
 
@@ -46,8 +46,8 @@ func (na *NetworkAddress) String() string {
 }
 
 type PeerEntry struct {
-	Address NetworkAddress
-	ID uint64
+	Address  NetworkAddress
+	ID       uint64
 	LastSeen uint64
 }
 
@@ -59,7 +59,7 @@ func (pe *PeerEntry) FromPeer(p *Peer) error {
 
 	pe.ID = p.ID
 	pe.Address = NetworkAddress{
-		IP: IP,
+		IP:   IP,
 		Port: uint32(p.address.Port),
 	}
 
@@ -81,16 +81,16 @@ type HandshakeResponse struct {
 }
 
 type TimedSyncRequest struct {
-	PayloadData SyncData      `binary:"payload_data"`
+	PayloadData SyncData `binary:"payload_data"`
 }
 
 type TimedSyncResponse struct {
-	LocalTime 	uint64 			`binary:"local_time"`
-	PayloadData SyncData      	`binary:"payload_data"`
-	Peers       []PeerEntry   	`binary:"local_peerlist,binary"`
+	LocalTime   uint64      `binary:"local_time"`
+	PayloadData SyncData    `binary:"payload_data"`
+	Peers       []PeerEntry `binary:"local_peerlist,binary"`
 }
 
-type PingRequest struct {}
+type PingRequest struct{}
 
 type PingResponse struct {
 	Status string `binary:"status"`
@@ -114,7 +114,7 @@ func NewHandshakeRequest(core *cryptonote.Core) (*HandshakeRequest, error) {
 	}
 
 	r := HandshakeRequest{
-		NodeData: nodeData,
+		NodeData:    nodeData,
 		PayloadData: *syncData,
 	}
 
@@ -138,9 +138,9 @@ func NewHandshakeResponse(h *Node) (*HandshakeResponse, error) {
 	}
 
 	return &HandshakeResponse{
-		NodeData: nodeData,
+		NodeData:    nodeData,
 		PayloadData: *payloadData,
-		Peers: peerList,
+		Peers:       peerList,
 	}, nil
 }
 
@@ -202,10 +202,7 @@ func newSyncData(core *cryptonote.Core) (*SyncData, error) {
 		return nil, err
 	}
 
-	hash, err := topBlock.Hash()
-	if err != nil {
-		return nil, err
-	}
+	hash := topBlock.Hash()
 
 	return &SyncData{height, *hash}, nil
 }

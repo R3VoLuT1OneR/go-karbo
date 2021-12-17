@@ -23,9 +23,8 @@ func TestGenerateGenesisBlock(t *testing.T) {
 	// TODO: Add tests for genesis block
 	assert.Nil(t, err)
 
-	hash, err := block.Hash()
+	hash := block.Hash()
 
-	assert.Nil(t, err)
 	assert.Equal(t, &genesisBlockHash, hash)
 }
 
@@ -44,30 +43,21 @@ func TestBlock_Deserialize200054(t *testing.T) {
 		block.PreviousBlockHash.String(),
 	)
 
-	hash, err := block.Hash()
-	if err != nil {
-		panic(err)
-	}
+	hash := block.Hash()
 
 	assert.Equal(t,
 		"231a4584e0c13325024059482fabd99188574f51336d19c0b5787f7ccc9e4dfc",
 		hash.String(),
 	)
 
-	thash, err := block.CoinbaseTransaction.Hash()
-	if err != nil {
-		panic(err)
-	}
+	thash := block.CoinbaseTransaction.Hash()
 
 	assert.Equal(t,
 		"25fc20b292ace0458ed2f9cf046588f3e7ecc02b6c2f372a29e4475545f9cef1",
 		thash.String(),
 	)
 
-	b, err := block.Serialize()
-	if err != nil {
-		panic(err)
-	}
+	b := block.Serialize()
 
 	assert.Equal(t, payload, b)
 }
@@ -87,7 +77,7 @@ func TestBlock_Deserialize105385(t *testing.T) {
 		block.PreviousBlockHash.String(),
 	)
 
-	hash, err := block.Hash()
+	hash := block.Hash()
 	if err != nil {
 		panic(err)
 	}
@@ -97,20 +87,14 @@ func TestBlock_Deserialize105385(t *testing.T) {
 		hash.String(),
 	)
 
-	thash, err := block.CoinbaseTransaction.Hash()
-	if err != nil {
-		panic(err)
-	}
+	thash := block.CoinbaseTransaction.Hash()
 
 	assert.Equal(t,
 		"effd9d3ffc37dc92f1f9721858c8ec11333c74ab74dcb60fc32926aa0dd51d8b",
 		thash.String(),
 	)
 
-	b, err := block.Serialize()
-	if err != nil {
-		panic(err)
-	}
+	b := block.Serialize()
 
 	assert.Equal(t, payload, b)
 }
@@ -135,33 +119,23 @@ func TestBlock_Deserialize60000(t *testing.T) {
 		block.PreviousBlockHash.String(),
 	)
 
-	hash, err := block.Hash()
-	if err != nil {
-		panic(err)
-	}
+	hash := block.Hash()
 
 	assert.Equal(t,
 		"8e39967eb50b8a922cbfe22fe02989218345cbd61ae651ddbecf00834910ff50",
 		hash.String(),
 	)
 
-	thash, err := block.CoinbaseTransaction.Hash()
-	if err != nil {
-		panic(err)
-	}
+	thash := block.CoinbaseTransaction.Hash()
 
 	assert.Equal(t,
 		"20c2e650f05d3271a5064af2dcdada7ff1f79d8791dfb390b3f0a010942aba39",
 		thash.String(),
 	)
 
-	b, err := block.Serialize()
-	if err != nil {
-		panic(err)
-	}
+	b := block.Serialize()
 
 	assert.Equal(t, payload, b)
-
 }
 
 func TestBlock_Deserialize(t *testing.T) {
@@ -172,8 +146,7 @@ func TestBlock_Deserialize(t *testing.T) {
 	err = block1.Deserialize(bytes.NewReader(payload1))
 	assert.Nil(t, err)
 
-	hash1, err := block1.Hash()
-	assert.Nil(t, err)
+	hash1 := block1.Hash()
 
 	assert.Equal(t, config.BlockMinorVersion0, block1.BlockHeader.MinorVersion)
 	assert.Equal(t, config.BlockMajorVersion1, block1.BlockHeader.MajorVersion)

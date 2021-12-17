@@ -33,7 +33,7 @@ func TestHashFromBytes(t *testing.T) {
 		check(err)
 
 		var h Hash
-		h.FromBytes(&testBytes)
+		h.FromBytes(testBytes)
 
 		assert.Equal(t, expected, h[:])
 		times++
@@ -63,12 +63,11 @@ func TestMerkleRootTree(t *testing.T) {
 		listLen := len(testBytes) / 32
 		for i := 0; i < listLen; i++ {
 			var h Hash
-			copy(h[:], testBytes[(i*32):(i*32) + 32])
+			copy(h[:], testBytes[(i*32):(i*32)+32])
 			list = append(list, h)
 		}
 
-		mh, err := list.merkleRootHash()
-		check(err)
+		mh := list.merkleRootHash()
 
 		assert.Equal(t, expected, mh[:])
 		times++

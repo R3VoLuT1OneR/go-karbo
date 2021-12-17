@@ -19,17 +19,11 @@ func TestTransaction_Deserialize2(t *testing.T) {
 	reader := bytes.NewReader(payload)
 	err = transaction.Deserialize(reader)
 
-	hash, err := transaction.Hash()
-	if err != nil {
-		panic(err)
-	}
+	hash := transaction.Hash()
 
 	assert.Equal(t, "10d5b2e0acdba20638f287826a443678af0585901d2d3809143111cc051f9684", hash.String())
 
-	ser, err := transaction.Serialize()
-	if err != nil {
-		panic(err)
-	}
+	ser := transaction.Serialize()
 
 	assert.Equal(t, payload, ser)
 }
@@ -78,8 +72,7 @@ func TestTransaction_Deserialize(t *testing.T) {
 		transaction.TransactionPrefix.Extra,
 	)
 
-	serialized, err := transaction.Serialize()
-	assert.Nil(t, err)
+	serialized := transaction.Serialize()
 	assert.Equal(t, serializedTransaction, serialized)
 
 	expectedHash := Hash{
@@ -89,8 +82,6 @@ func TestTransaction_Deserialize(t *testing.T) {
 		0x2c, 0x9b, 0x80, 0x6a, 0x78, 0x69, 0xa4, 0x15,
 	}
 
-	hash, err := transaction.Hash()
-
-	assert.Nil(t, err)
+	hash := transaction.Hash()
 	assert.Equal(t, expectedHash, *hash)
 }

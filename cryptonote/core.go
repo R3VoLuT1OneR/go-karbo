@@ -15,11 +15,8 @@ type Core struct {
 	storage Store
 	logger  *log.Logger
 
-	// chains contains all the chains belongs to the current node
-	chains []*Chain
-
-	// bcLock used for locking blockchain for changes
-	bcLock sync.Mutex
+	// bcLock used for locking blockchain for read and write
+	bcLock sync.RWMutex
 }
 
 var (
@@ -58,24 +55,24 @@ func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
 	defer c.bcLock.Unlock()
 
 	index := b.Index()
-	hash, err := b.Hash()
-	if err != nil {
-		return err
-	}
+	hash := b.Hash()
+	blockStr := fmt.Sprintf("%s (%d)", hash, index)
 
-	// c.logger.Tracef("adding block: %d (%s)", index, hash.String())
+	c.logger.Tracef("adding block: %s", blockStr)
 
+	// Verify that block is not added to blockchain
 	hasBlock, err := c.storage.HasBlock(hash)
 	if err != nil {
-		return err
+		return fmt.Errorf("unexpected error: %w", err)
 	}
 	if hasBlock {
-		c.logger.Errorf("block already exists: %d (%s)", index, hash.String())
+		c.logger.Errorf("block already exists: %s", blockStr)
 		return ErrAddBlockAlreadyExists
 	}
 
+	// Number of block transaction hashes must be sane as raw transactions that will be saved
 	if len(b.TransactionsHashes) != len(rawTransactions) {
-		c.logger.Errorf("wrong transaction size: %d (%s)", index, hash.String())
+		c.logger.Errorf("wrong transaction size: %s", blockStr)
 		return ErrAddBlockTransactionCountNotMatch
 	}
 
@@ -91,11 +88,7 @@ func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	coinbaseTransactionSize, err := b.CoinbaseTransaction.Size()
-	if err != nil {
-		return err
-	}
-
+	coinbaseTransactionSize := b.CoinbaseTransaction.Size()
 	if coinbaseTransactionSize > c.Network.MaxTxSize {
 		c.logger.Errorf(fmt.Sprintf(
 			"coinbase transaction size %d bigger than allowed %d",
@@ -171,9 +164,7 @@ func (c *Core) BlockByHeight(h uint32) (*Block, error) {
 
 func (c *Core) GenesisBlockHash() (h *Hash, err error) {
 	if b, err := c.storage.GetBlockByHeight(0); err == nil {
-		if h, err = b.Hash(); err == nil {
-			return h, nil
-		}
+		return b.Hash(), nil
 	}
 
 	return nil, fmt.Errorf("failed to get genesis block: %w", err)
@@ -203,10 +194,7 @@ func (c *Core) BuildSparseChain() ([]Hash, error) {
 		return nil, err
 	}
 
-	topHash, err := topBlock.Hash()
-	if err != nil {
-		return nil, err
-	}
+	topHash := topBlock.Hash()
 
 	list = append(list, *topHash)
 
@@ -263,12 +251,6 @@ func (c *Core) deserializeTransactions(rawTransactions [][]byte) ([]Transaction,
 	}
 
 	return transactions, size, nil
-}
-
-// findChainContainingBlock returns chain containing block by the hash
-func (c *Core) findChainContainingBlockHash(*Hash) *Chain {
-
-	return nil
 }
 
 // ------------------ Experiments ------------------------------

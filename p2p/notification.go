@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
@@ -102,4 +103,14 @@ func newRequestChain(core *cryptonote.Core) (*NotificationRequestChain, error) {
 	}
 
 	return &NotificationRequestChain{list}, nil
+}
+
+func (rb *RawBlock) ToBlock() (*cryptonote.Block, error) {
+	block := &cryptonote.Block{}
+	rawBlockReader := bytes.NewReader(rb.Block)
+	if err := block.Deserialize(rawBlockReader); err != nil {
+		return nil, err
+	}
+
+	return block, nil
 }

@@ -41,36 +41,22 @@ type Block struct {
 	hashTransactions *Hash
 }
 
-func (b *Block) Hash() (*Hash, error) {
+func (b *Block) Hash() *Hash {
 	if b.hash == nil {
 		var allBytesBuffer bytes.Buffer
 
 		/**
 		 * Write block header bytes
 		 */
-		headerBytes, err := b.BlockHeader.serialize()
-		if err != nil {
-			return nil, err
-		}
-		allBytesBuffer.Write(headerBytes)
+		allBytesBuffer.Write(b.BlockHeader.serialize())
 
 		/**
 		 * Write merkle root hash bytes
 		 */
-		baseTransactionHash, err := b.CoinbaseTransaction.Hash()
-		if err != nil {
-			return nil, err
-		}
-
+		baseTransactionHash := b.CoinbaseTransaction.Hash()
 		hl := HashList{*baseTransactionHash}
 		hl = append(hl, b.TransactionsHashes...)
-
-		mrHash, err := hl.merkleRootHash()
-		if err != nil {
-			return nil, err
-		}
-
-		allBytesBuffer.Write(mrHash[:])
+		allBytesBuffer.Write(hl.merkleRootHash()[:])
 
 		/**
 		 * Write transactions number
@@ -80,11 +66,7 @@ func (b *Block) Hash() (*Hash, error) {
 		allBytesBuffer.Write(transactionCount[:written])
 
 		if b.MajorVersion == config.BlockMajorVersion2 || b.MajorVersion == config.BlockMajorVersion3 {
-			bs, err := b.Parent.serialize(true)
-			if err != nil {
-				return nil, err
-			}
-			allBytesBuffer.Write(bs)
+			allBytesBuffer.Write(b.Parent.serialize(true))
 		}
 
 		/**
@@ -100,10 +82,10 @@ func (b *Block) Hash() (*Hash, error) {
 
 		hashBytes := h.Bytes()
 		b.hash = new(Hash)
-		b.hash.FromBytes(&hashBytes)
+		b.hash.FromBytes(hashBytes)
 	}
 
-	return b.hash, nil
+	return b.hash
 }
 
 func (b *Block) Index() uint32 {
@@ -152,29 +134,17 @@ func (b *Block) Deserialize(r *bytes.Reader) error {
 	return nil
 }
 
-func (b *Block) Serialize() ([]byte, error) {
+func (b *Block) Serialize() []byte {
 	var serialized bytes.Buffer
 
-	hb, err := b.BlockHeader.serialize()
-	if err != nil {
-		return nil, err
-	}
-	serialized.Write(hb)
+	serialized.Write(b.BlockHeader.serialize())
 
 	mv := b.BlockHeader.MajorVersion
 	if mv == config.BlockMajorVersion2 || mv == config.BlockMajorVersion3 {
-		pbh, err := b.Parent.serialize(false)
-		if err != nil {
-			return nil, err
-		}
-		serialized.Write(pbh)
+		serialized.Write(b.Parent.serialize(false))
 	}
 
-	tb, err := b.CoinbaseTransaction.Serialize()
-	if err != nil {
-		return nil, err
-	}
-	serialized.Write(tb)
+	serialized.Write(b.CoinbaseTransaction.Serialize())
 
 	buf := make([]byte, binary.MaxVarintLen64)
 	written := binary.PutUvarint(buf, uint64(len(b.TransactionsHashes)))
@@ -184,7 +154,7 @@ func (b *Block) Serialize() ([]byte, error) {
 		serialized.Write(b.TransactionsHashes[i][:])
 	}
 
-	return serialized.Bytes(), nil
+	return serialized.Bytes()
 }
 
 func (h *BlockHeader) deserialize(reader *bytes.Reader) error {
@@ -239,7 +209,7 @@ func (h *BlockHeader) deserialize(reader *bytes.Reader) error {
 	return nil
 }
 
-func (h *BlockHeader) serialize() ([]byte, error) {
+func (h *BlockHeader) serialize() []byte {
 	var serialized bytes.Buffer
 
 	buf := make([]byte, binary.MaxVarintLen64)
@@ -256,17 +226,14 @@ func (h *BlockHeader) serialize() ([]byte, error) {
 		written = binary.PutUvarint(buf, h.Timestamp)
 		serialized.Write(buf[:written])
 		serialized.Write(h.PreviousBlockHash[:])
-		if err := binary.Write(&serialized, binary.LittleEndian, h.Nonce); err != nil {
-			return nil, errors.New("failed to write block nonce")
-		}
+		_ = binary.Write(&serialized, binary.LittleEndian, h.Nonce)
 	default:
-		return nil, errors.New("wrong block major version")
 	}
 
-	return serialized.Bytes(), nil
+	return serialized.Bytes()
 }
 
-func (pb *ParentBlock) serialize(hashing bool) ([]byte, error) {
+func (pb *ParentBlock) serialize(hashing bool) []byte {
 	buf := make([]byte, binary.MaxVarintLen64)
 
 	var serialized bytes.Buffer
@@ -282,17 +249,12 @@ func (pb *ParentBlock) serialize(hashing bool) ([]byte, error) {
 
 	serialized.Write(pb.Prev[:])
 
-	if err := binary.Write(&serialized, binary.LittleEndian, pb.Nonce); err != nil {
-		return nil, err
-	}
+	_ = binary.Write(&serialized, binary.LittleEndian, pb.Nonce)
 
 	if hashing {
-		th, err := pb.BaseTransaction.Hash()
-		if err != nil {
-			return nil, err
-		}
-
+		th := pb.BaseTransaction.Hash()
 		h := pb.BaseTransactionBranch.TreeHashFromBranch(*th)
+
 		serialized.Write(h[:])
 	}
 
@@ -303,17 +265,13 @@ func (pb *ParentBlock) serialize(hashing bool) ([]byte, error) {
 		serialized.Write(tb[:])
 	}
 
-	btb, err := pb.BaseTransaction.serialize()
-	if err != nil {
-		return nil, err
-	}
-	serialized.Write(btb)
+	serialized.Write(pb.BaseTransaction.serialize())
 
 	for _, h := range pb.BlockchainBranch {
 		serialized.Write(h[:])
 	}
 
-	return serialized.Bytes(), nil
+	return serialized.Bytes()
 }
 
 func (pb *ParentBlock) deserialize(r *bytes.Reader) error {

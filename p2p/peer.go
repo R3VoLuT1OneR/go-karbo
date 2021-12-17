@@ -176,10 +176,10 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 		}
 
 		// Get max index of this node blockchain
-		topIndex, err := p.node.Core.TopIndex()
-		if err != nil {
-			return fmt.Errorf("[%s] unexpected error: %w", p, err)
-		}
+		//topIndex, err := p.node.Core.TopIndex()
+		//if err != nil {
+		//	return fmt.Errorf("[%s] unexpected error: %w", p, err)
+		//}
 
 		// TODO: Build response chain entry and response to requested peer
 		//responseChainEntry := &NotificationResponseChainEntry{
@@ -346,11 +346,7 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 			)
 		}
 
-		hash, err := block.Hash()
-		if err != nil {
-			return err
-		}
-
+		hash := block.Hash()
 		if !p.requestedBlocks.Has(hash) {
 			p.Shutdown()
 			return errors.New(fmt.Sprintf("[%s] got not requested block #%d '%s'", p, i, hash.String()))
