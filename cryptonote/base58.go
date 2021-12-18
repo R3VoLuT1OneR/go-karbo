@@ -51,12 +51,12 @@ var (
 	}
 )
 
-func uint64touint8be(u uint64) []byte {
-	bytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(bytes, u)
+func uint64toUint8be(u uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, u)
 
 	var zeroSize int
-	for i, b := range bytes {
+	for i, b := range b {
 		if b != byte(0x00) || i == 7 {
 			break
 		}
@@ -64,7 +64,7 @@ func uint64touint8be(u uint64) []byte {
 		zeroSize++
 	}
 
-	return bytes[zeroSize:]
+	return b[zeroSize:]
 }
 
 func decodeBlock(b string) ([]byte, error) {
@@ -101,7 +101,7 @@ func decodeBlock(b string) ([]byte, error) {
 		return nil, fmt.Errorf("Block overflow")
 	}
 
-	be := uint64touint8be(answer)
+	be := uint64toUint8be(answer)
 	missingBytes := resSize - len(be)
 
 	if missingBytes < 0 {

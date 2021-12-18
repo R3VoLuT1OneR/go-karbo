@@ -249,7 +249,7 @@ func TestUint8beTo64(t *testing.T) {
 
 func TestUint64ToUint8be(t *testing.T) {
 	for _, td := range dataUint8beTo64 {
-		assert.Equal(t, td.b, uint64touint8be(td.i))
+		assert.Equal(t, td.b, uint64toUint8be(td.i))
 	}
 }
 
