@@ -87,7 +87,7 @@ func (b *Block) Hash() *Hash {
 	return b.hash
 }
 
-func (b *Block) Index() uint32 {
+func (b *Block) Height() uint32 {
 	if len(b.CoinbaseTransaction.Inputs) == 1 {
 		i := b.CoinbaseTransaction.Inputs[0]
 

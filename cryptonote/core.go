@@ -18,14 +18,6 @@ type Core struct {
 	bcLock sync.RWMutex
 }
 
-var (
-	ErrAddBlockAlreadyExists              = errors.New("block already exists")
-	ErrAddBlockTransactionCountNotMatch   = errors.New("transaction sizes not match")
-	ErrAddBlockTransactionSizeMax         = errors.New("transaction size bigger than allowed")
-	ErrAddBlockTransactionDeserialization = errors.New("transaction deserialization failed")
-	ErrAddBlockRejectedAsOrphaned         = errors.New("rejected as orphaned")
-)
-
 func NewCore(bc BlockChain, DB Store, logger *log.Logger) (*Core, error) {
 	core := &Core{
 		BlockChain: bc,
@@ -53,7 +45,7 @@ func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
 	c.bcLock.Lock()
 	defer c.bcLock.Unlock()
 
-	index := b.Index()
+	index := b.Height()
 	hash := b.Hash()
 	blockStr := fmt.Sprintf("%s (%d)", hash, index)
 

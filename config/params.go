@@ -1,6 +1,8 @@
 package config
 
 const (
+	DifficultyTarget = uint64(240)
+
 	TransactionVersion1 byte = 1
 
 	P2PVersion1 uint8 = 1
@@ -20,4 +22,15 @@ const (
 	MaxBlockNumber   = uint64(500000000)
 	MaxBlockBlobSize = uint64(500000000)
 	MaxTxSize        = uint64(1000000000)
+
+	UpgradeHeightV2   = uint32(60000)
+	UpgradeHeightV3   = uint32(216000)
+	UpgradeHeightV3s1 = uint32(216394)
+	UpgradeHeightV4   = uint32(266000)
+	UpgradeHeightV4s1 = uint32(300000)
+	UpgradeHeightV4s2 = uint32(500000)
+	UpgradeHeightV5   = uint32(4294967294)
+
+	blockFutureTimeLimit   = DifficultyTarget * 7
+	blockFutureTimeLimitV1 = DifficultyTarget * 3
 )

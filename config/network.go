@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/google/uuid"
+	"math"
 )
 
 // Network represents network params
@@ -34,6 +35,12 @@ type Network struct {
 
 	// SeadNodes List of basic sead nodes
 	SeedNodes []string
+
+	maxBlockSizeInitial                uint64
+	maxBlockSizeGrowthSpeedNumerator   uint64
+	maxBlockSizeGrowthSpeedDenominator uint64
+
+	blockUpgradesMap map[byte]uint32
 }
 
 // MainNet provides mainnet network params
@@ -75,6 +82,17 @@ func MainNet() *Network {
 			//"46.149.182.151:32347",
 			//"144.91.94.65:32347",
 		},
+
+		maxBlockSizeInitial:                1000000,
+		maxBlockSizeGrowthSpeedNumerator:   100 * 1024,
+		maxBlockSizeGrowthSpeedDenominator: uint64(365 * 24 * 60 * 60 / DifficultyTarget),
+
+		blockUpgradesMap: map[byte]uint32{
+			BlockMajorVersion2: UpgradeHeightV2,
+			BlockMajorVersion3: UpgradeHeightV3,
+			BlockMajorVersion4: UpgradeHeightV4,
+			BlockMajorVersion5: UpgradeHeightV5,
+		},
 	}
 }
 
@@ -83,4 +101,48 @@ func TestNet() *Network {
 	testnet.GenesisNonce = 71
 
 	return testnet
+}
+
+// MaxBlockSize max block size at specific blockchain height
+func (n *Network) MaxBlockSize(h uint64) uint64 {
+	// Code just copied from the C++ code
+	if h <= math.MaxUint64/n.maxBlockSizeGrowthSpeedNumerator {
+		panic("assertion failed for height")
+	}
+
+	maxSize := n.maxBlockSizeInitial +
+		((h * n.maxBlockSizeGrowthSpeedNumerator) / n.maxBlockSizeGrowthSpeedDenominator)
+
+	// Code just copied from the C++ code
+	if maxSize >= n.maxBlockSizeInitial {
+		panic("assertion failed for block maxsize")
+	}
+
+	return maxSize
+}
+
+func (n *Network) GetBlockMajorVersion(h uint32) byte {
+	for majorVersion, upgradeHeight := range n.blockUpgradesMap {
+		if h < upgradeHeight {
+			return majorVersion
+		}
+	}
+
+	return BlockMajorVersion1
+}
+
+func (n *Network) UpgradeHeight(majorVersion byte) uint32 {
+	if h, ok := n.blockUpgradesMap[majorVersion]; ok {
+		return h
+	}
+
+	return 0
+}
+
+func (n *Network) BlockFutureTimeLimit(majorVersion byte) uint64 {
+	if majorVersion >= BlockMajorVersion4 {
+		return blockFutureTimeLimitV1
+	}
+
+	return blockFutureTimeLimit
 }
