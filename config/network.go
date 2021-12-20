@@ -146,3 +146,11 @@ func (n *Network) BlockFutureTimeLimit(majorVersion byte) uint64 {
 
 	return blockFutureTimeLimit
 }
+
+func (n *Network) BlockTimestampCheckWindow(majorVersion byte) int {
+	if majorVersion >= BlockMajorVersion4 {
+		return blockTimestampCheckWindowV1
+	}
+
+	return blockTimestampCheckWindow
+}

@@ -33,4 +33,7 @@ const (
 
 	blockFutureTimeLimit   = DifficultyTarget * 7
 	blockFutureTimeLimitV1 = DifficultyTarget * 3
+
+	blockTimestampCheckWindow   = 60
+	blockTimestampCheckWindowV1 = 11
 )

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
+	"github.com/r3volut1oner/go-karbo/utils"
 	log "github.com/sirupsen/logrus"
 	"sync"
 	"time"
@@ -14,13 +15,19 @@ type BlockChain struct {
 	// Network is current network configurations, must stay immutable
 	Network *config.Network
 
-	// logger for block chain events
-	logger *log.Logger
+	// tip the higher block in the blockchain
+	tip *Block
+
+	// tips higher blockchain tips
+	tips []*Block
 
 	// genesisBlock used for caching genesis block
 	genesisBlock *Block
 
 	blocksIndex map[Hash]*Block
+
+	// logger for block chain events
+	logger *log.Logger
 
 	sync.RWMutex
 }
@@ -30,6 +37,8 @@ func NewBlockChain(network *config.Network, logger *log.Logger) *BlockChain {
 	bc := &BlockChain{
 		Network: network,
 		logger:  logger,
+
+		tips: []*Block{},
 	}
 
 	return bc
@@ -103,8 +112,8 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 //
 // Returns miner reward and an error if there is an error in block validation
 func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) (uint64, error) {
-	prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
-	minerReward := 0
+	//prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
+	minerReward := uint64(0)
 
 	if bc.Network.GetBlockMajorVersion(b.Height()) != b.MajorVersion {
 		return 0, ErrBlockValidationWrongVersion
@@ -130,6 +139,17 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) (uint64, error
 		return 0, err
 	}
 
+	timestampCheckWindow := bc.Network.BlockTimestampCheckWindow(b.MajorVersion)
+	lastTimestamps := bc.lastBlockTimestamps(timestampCheckWindow, b)
+	if len(lastTimestamps) >= timestampCheckWindow {
+		if b.Timestamp < utils.MedianSlice(lastTimestamps) {
+			err := ErrBlockValidationTimestampTooFarInPast
+			blogger.Error(err)
+			return 0, err
+		}
+	}
+
+	return minerReward, nil
 }
 
 // blockHeight returns index on the current block
@@ -207,4 +227,28 @@ func (bc *BlockChain) deserializeTransactions(blogger *log.Entry, rt [][]byte) (
 		transactionsSize += tsSize
 	}
 	return transactions, transactionsSize, nil
+}
+
+// lastBlockTimestamps fetches the timestamps of the
+func (bc *BlockChain) lastBlockTimestamps(count int, b *Block) []uint64 {
+	var timestamps []uint64
+	var tempBlock = b
+
+	for count > 0 {
+		timestamps = append(timestamps, tempBlock.Timestamp)
+
+		if tempBlock.PreviousBlockHash == (Hash{}) {
+			break
+		}
+
+		tempBlock = bc.loadBlock(&tempBlock.PreviousBlockHash)
+		count--
+	}
+
+	return timestamps
+}
+
+// loadBlock fetch the block from block store
+func (bc *BlockChain) loadBlock(h *Hash) *Block {
+	return nil
 }

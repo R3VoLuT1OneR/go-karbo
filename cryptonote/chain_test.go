@@ -2,13 +2,16 @@ package cryptonote
 
 import (
 	"github.com/r3volut1oner/go-karbo/config"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestBlockChain_NewBlockChain(t *testing.T) {
 	network := config.TestNet()
-	bc := NewBlockChain(network)
+	logger := logrus.New()
+
+	bc := NewBlockChain(network, logger)
 
 	assert.IsType(t, BlockChain{}, bc)
 	assert.Equal(t, network, bc.Network)
@@ -16,6 +19,7 @@ func TestBlockChain_NewBlockChain(t *testing.T) {
 
 func TestBlockChain_GenesisBlock(t *testing.T) {
 	net := config.MainNet()
+	logger := logrus.New()
 
 	genesisBlockHash := Hash{
 		0x31, 0x25, 0xb7, 0x9e, 0x4a, 0x42, 0xf8, 0xd4,
@@ -24,7 +28,7 @@ func TestBlockChain_GenesisBlock(t *testing.T) {
 		0x44, 0x90, 0x56, 0xa4, 0xea, 0xe, 0xfe, 0xa4,
 	}
 
-	bc := NewBlockChain(net)
+	bc := NewBlockChain(net, logger)
 	block, err := bc.GenesisBlock()
 
 	// TODO: Add tests for genesis block
@@ -33,4 +37,5 @@ func TestBlockChain_GenesisBlock(t *testing.T) {
 	hash := block.Hash()
 
 	assert.Equal(t, &genesisBlockHash, hash)
+	assert.Equal(t, block.PreviousBlockHash, Hash{})
 }

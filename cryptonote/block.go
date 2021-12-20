@@ -30,14 +30,14 @@ type BlockHeader struct {
 }
 
 type Block struct {
-	BlockHeader
-
 	Parent              ParentBlock
 	CoinbaseTransaction Transaction
 	TransactionsHashes  []Hash
 
 	hash             *Hash
 	hashTransactions *Hash
+
+	BlockHeader
 }
 
 func (b *Block) Hash() *Hash {
