@@ -33,8 +33,10 @@ func TestGetPublicKey(t *testing.T) {
 	for _, td := range testingData {
 		spendKey, _ := KeyFromHex(td.spendKey)
 		viewKey, _ := KeyFromHex(td.viewKey)
+		publicSpendKey, _ := PublicFromPrivate(spendKey)
+		publicViewKey, _ := PublicFromPrivate(viewKey)
 
-		assert.Equal(t, td.publicSpendKey, PublicFromPrivate(spendKey).Hex())
-		assert.Equal(t, td.publicViewKey, PublicFromPrivate(viewKey).Hex())
+		assert.Equal(t, td.publicSpendKey, publicSpendKey.Hex())
+		assert.Equal(t, td.publicViewKey, publicViewKey.Hex())
 	}
 }

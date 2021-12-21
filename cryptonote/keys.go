@@ -10,13 +10,21 @@ import (
 	ed "github.com/r3volut1oner/go-karbo/crypto/edwards25519"
 )
 
+var (
+	ErrKeyNotOnCurve  = errors.New("key is not on curve")
+	ErrKeyWrongLength = errors.New("key must be 32 bytes length")
+)
+
 // Key is any type of key
 type Key interface {
 	// Hex representation of the key
 	Hex() string
 
-	// Byte slice
+	// Bytes array
 	Bytes() *[32]byte
+
+	// Check if key is it is valid key
+	Check() bool
 }
 
 type key struct {
@@ -28,9 +36,14 @@ func (k *key) Hex() string {
 	return hex.EncodeToString(k.b[:])
 }
 
-// Bytes represention of key
+// Bytes representation of the key
 func (k *key) Bytes() *[32]byte {
 	return &k.b
+}
+
+// Check that the point is not curve
+func (k *key) Check() bool {
+	return ed.ScCheck(k.Bytes())
 }
 
 // KeyFromHex returns key from hex string
@@ -45,7 +58,7 @@ func KeyFromHex(s string) (Key, error) {
 // KeyFromBytes key from bytes
 func KeyFromBytes(b *[]byte) (Key, error) {
 	if len(*b) != 32 {
-		return nil, errors.New("Key must be 32 bytes length")
+		return nil, ErrKeyWrongLength
 	}
 
 	var keyBytes [32]byte
@@ -59,9 +72,9 @@ func KeyFromArray(b *[32]byte) Key {
 }
 
 // PublicFromPrivate key from private
-func PublicFromPrivate(k Key) Key {
+func PublicFromPrivate(k Key) (Key, error) {
 	if !ed.ScCheck(k.Bytes()) {
-		panic(errors.New("Provided key is not on curve"))
+		return nil, ErrKeyNotOnCurve
 	}
 
 	var point ed.ExtendedGroupElement
@@ -69,14 +82,14 @@ func PublicFromPrivate(k Key) Key {
 
 	var keyBytes [32]byte
 	point.ToBytes(&keyBytes)
-	return KeyFromArray(&keyBytes)
+	return KeyFromArray(&keyBytes), nil
 }
 
 // ViewFromSpend returns deterministic private key
 func ViewFromSpend(k Key) Key {
-	kbytes := k.Bytes()[:]
-	khash := hash.Keccak(&kbytes)
-	key := KeyFromArray(reduceBytesToPoint(&khash))
+	keyBytes := k.Bytes()[:]
+	keyHash := hash.Keccak(&keyBytes)
+	key := KeyFromArray(reduceBytesToPoint(&keyHash))
 
 	return key
 }
