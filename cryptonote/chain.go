@@ -7,6 +7,7 @@ import (
 	"github.com/r3volut1oner/go-karbo/config"
 	"github.com/r3volut1oner/go-karbo/utils"
 	log "github.com/sirupsen/logrus"
+	"math"
 	"sync"
 	"time"
 )
@@ -111,31 +112,31 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 // validateBlock validates block
 //
 // Returns miner reward and an error if there is an error in block validation
-func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) (uint64, error) {
-	minerReward := uint64(0)
-
+func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) error {
 	if bc.Network.GetBlockMajorVersion(b.Height()) != b.MajorVersion {
-		return 0, ErrBlockValidationWrongVersion
+		err := ErrBlockValidationWrongVersion
+		blogger.Error(err)
+		return err
 	}
 
 	if b.MajorVersion == config.BlockMajorVersion2 && b.Parent.MajorVersion > config.BlockMajorVersion1 {
 		err := ErrBlockValidationParentBlockWrongVersion
 		blogger.WithField("block_parent_major_version", b.Parent.MajorVersion).Error(err)
-		return 0, err
+		return err
 	}
 
 	if b.MajorVersion == config.BlockMajorVersion2 || b.MajorVersion == config.BlockMajorVersion3 {
 		if len(b.Parent.serialize(false)) > 2048 {
 			err := ErrBlockValidationParentBlockSizeTooBig
 			blogger.Error(err)
-			return 0, err
+			return err
 		}
 	}
 
 	if b.Timestamp > uint64(time.Now().Unix())+bc.Network.BlockFutureTimeLimit(b.MajorVersion) {
 		err := ErrBlockValidationTimestampTooFarInFuture
 		blogger.Error(err)
-		return 0, err
+		return err
 	}
 
 	timestampCheckWindow := bc.Network.BlockTimestampCheckWindow(b.MajorVersion)
@@ -144,7 +145,7 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) (uint64, error
 		if b.Timestamp < utils.MedianSlice(lastTimestamps) {
 			err := ErrBlockValidationTimestampTooFarInPast
 			blogger.Error(err)
-			return 0, err
+			return err
 		}
 	}
 
@@ -153,50 +154,103 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) (uint64, error
 		if parseError != nil || cbTransactionExtraFields.MiningTag != nil {
 			err := ErrBlockValidationBaseTransactionExtraMMTag
 			blogger.Error(err)
-			return 0, err
+			return err
 		}
 	}
 
 	if len(b.CoinbaseTransaction.Inputs) != 1 {
-		err := ErrTransactionBaseWrongInputCount
+		err := ErrTransactionInputWrongCount
 		blogger.Error(err)
-		return 0, err
+		return err
 	}
 
 	if _, ok := b.CoinbaseTransaction.Inputs[0].(InputCoinbase); !ok {
-		err := ErrTransactionUnexpectedInputType
+		err := ErrTransactionInputUnexpectedType
 		blogger.Error(err)
-		return 0, err
+		return err
 	}
 
 	prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
 	if b.CoinbaseTransaction.Inputs[0].(InputCoinbase).BlockIndex != prevBlockHeight {
 		err := ErrTransactionBaseInputWrongBlockIndex
 		blogger.Error(err)
-		return 0, err
+		return err
 	}
 
 	if uint32(b.CoinbaseTransaction.UnlockHeight) != prevBlockHeight+bc.Network.MinedMoneyUnlockWindow() {
 		err := ErrTransactionWrongUnlockTime
 		blogger.Error(err)
-		return 0, err
+		return err
 	}
 
 	if len(b.CoinbaseTransaction.TransactionSignatures) == 0 {
 		err := ErrTransactionBaseInvalidSignaturesCount
 		blogger.Error(err)
-		return 0, err
+		return err
 	}
 
 	if b.MajorVersion >= config.BlockMajorVersion5 {
 		if len(b.CoinbaseTransaction.Outputs) != 1 {
-			err := ErrTransactionInvalidOutputsCount
+			err := ErrTransactionOutputsInvalidCount
 			blogger.Error(err)
-			return 0, err
+			return err
 		}
 	}
 
-	return minerReward, nil
+	minerReward := uint64(0)
+	for i, output := range b.CoinbaseTransaction.Outputs {
+		ologger := blogger.WithField("coinbase_output_index", i)
+
+		if output.Amount == 0 {
+			err := ErrTransactionOutputZeroAmount
+			ologger.Error(err)
+			return err
+		}
+
+		switch output.Target.(type) {
+		case OutputKey:
+			if !output.Target.(OutputKey).Check() {
+				err := ErrTransactionOutputInvalidKey
+				ologger.Error(err)
+				return err
+			}
+		case OutputMultisignature:
+			multisigOutput := output.Target.(OutputMultisignature)
+			if int(multisigOutput.RequiredSignaturesCount) > len(multisigOutput.Keys) {
+				err := ErrTransactionOutputInvalidRequiredSignaturesCount
+				ologger.Error(err)
+				return err
+			}
+
+			for ki, key := range multisigOutput.Keys {
+				if !key.Check() {
+					err := ErrTransactionOutputInvalidMultisignatureKey
+					ologger.WithField("coinbase_output_key_index", ki).Error(err)
+					return err
+				}
+			}
+		default:
+			err := ErrTransactionOutputUnknownType
+			ologger.Error(err)
+			return err
+		}
+
+		if minerReward > math.MaxUint64-output.Amount {
+			err := ErrTransactionOutputsAmountOverflow
+			ologger.Error(err)
+			return err
+		}
+
+		minerReward += output.Amount
+	}
+
+	if b.Height() >= config.UpgradeHeightV4s2 && len(b.CoinbaseTransaction.Extra) > config.MaxExtraSize {
+		err := ErrTransactionExtraTooLarge
+		blogger.Error(err)
+		return err
+	}
+
+	return nil
 }
 
 // blockHeight returns index on the current block

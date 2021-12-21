@@ -38,4 +38,6 @@ const (
 	blockTimestampCheckWindowV1 = 11
 
 	minedMoneyUnlockWindow = 10
+
+	MaxExtraSize = 1024
 )
