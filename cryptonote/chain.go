@@ -84,26 +84,26 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	var transactions []Transaction
-	var transactionsSize uint64
-	if transactions, transactionsSize, err := bc.deserializeTransactions(blogger, rawTransactions); err != nil {
-		return err
-	}
-
-	prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
-
-	blockSize := coinbaseTransactionSize + transactionsSize
-	if blockSize > bc.Network.MaxBlockSize(prevBlockHeight) {
-		err := ErrBlockValidationCumulativeSizeTooBig
-		blogger.Error(err)
-		return err
-	}
-
-	var minerReward uint64
-	if minerReward, err := bc.validateBlock(b); err != nil {
-		blogger.Error(err)
-		return err
-	}
+	//var transactions []Transaction
+	//var transactionsSize uint64
+	//if transactions, transactionsSize, err := bc.deserializeTransactions(blogger, rawTransactions); err != nil {
+	//	return err
+	//}
+	//
+	//prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
+	//
+	//blockSize := coinbaseTransactionSize + transactionsSize
+	//if blockSize > bc.Network.MaxBlockSize(prevBlockHeight) {
+	//	err := ErrBlockValidationCumulativeSizeTooBig
+	//	blogger.Error(err)
+	//	return err
+	//}
+	//
+	//var minerReward uint64
+	//if minerReward, err := bc.validateBlock(b); err != nil {
+	//	blogger.Error(err)
+	//	return err
+	//}
 
 	return nil
 }
@@ -112,7 +112,6 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 //
 // Returns miner reward and an error if there is an error in block validation
 func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) (uint64, error) {
-	//prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
 	minerReward := uint64(0)
 
 	if bc.Network.GetBlockMajorVersion(b.Height()) != b.MajorVersion {
@@ -149,11 +148,59 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) (uint64, error
 		}
 	}
 
+	if b.MajorVersion >= config.BlockMajorVersion5 {
+		cbTransactionExtraFields, parseError := b.CoinbaseTransaction.ParseExtra()
+		if parseError != nil || cbTransactionExtraFields.MiningTag != nil {
+			err := ErrBlockValidationBaseTransactionExtraMMTag
+			blogger.Error(err)
+			return 0, err
+		}
+	}
+
+	if len(b.CoinbaseTransaction.Inputs) != 1 {
+		err := ErrTransactionBaseWrongInputCount
+		blogger.Error(err)
+		return 0, err
+	}
+
+	if _, ok := b.CoinbaseTransaction.Inputs[0].(InputCoinbase); !ok {
+		err := ErrTransactionUnexpectedInputType
+		blogger.Error(err)
+		return 0, err
+	}
+
+	prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
+	if b.CoinbaseTransaction.Inputs[0].(InputCoinbase).BlockIndex != prevBlockHeight {
+		err := ErrTransactionBaseInputWrongBlockIndex
+		blogger.Error(err)
+		return 0, err
+	}
+
+	if uint32(b.CoinbaseTransaction.UnlockHeight) != prevBlockHeight+bc.Network.MinedMoneyUnlockWindow() {
+		err := ErrTransactionWrongUnlockTime
+		blogger.Error(err)
+		return 0, err
+	}
+
+	if len(b.CoinbaseTransaction.TransactionSignatures) == 0 {
+		err := ErrTransactionBaseInvalidSignaturesCount
+		blogger.Error(err)
+		return 0, err
+	}
+
+	if b.MajorVersion >= config.BlockMajorVersion5 {
+		if len(b.CoinbaseTransaction.Outputs) != 1 {
+			err := ErrTransactionInvalidOutputsCount
+			blogger.Error(err)
+			return 0, err
+		}
+	}
+
 	return minerReward, nil
 }
 
 // blockHeight returns index on the current block
-func (bc *BlockChain) blockHeight(h *Hash) uint64 {
+func (bc *BlockChain) blockHeight(h *Hash) uint32 {
 	return 0
 }
 

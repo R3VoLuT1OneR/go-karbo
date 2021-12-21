@@ -92,7 +92,7 @@ func (b *Block) Height() uint32 {
 		i := b.CoinbaseTransaction.Inputs[0]
 
 		if coinbase, ok := i.(InputCoinbase); ok {
-			return coinbase.Height
+			return coinbase.BlockIndex
 		}
 	}
 

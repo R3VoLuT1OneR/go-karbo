@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	TxTagCoinbase       = 0xff
-	TxTagKey            = 0x2
-	TxTagMultisignature = 0x3
+	TxTagCoinbase       byte = 0xff
+	TxTagKey                 = 0x2
+	TxTagMultisignature      = 0x3
 )
 
 type KeyImage EllipticCurvePointer
@@ -18,7 +18,7 @@ type KeyImage EllipticCurvePointer
 type TransactionSignatures [][]Signature
 
 type InputCoinbase struct {
-	Height uint32
+	BlockIndex uint32
 }
 
 func (i InputCoinbase) sigCount() int {
@@ -147,7 +147,7 @@ func (tp *TransactionPrefix) serialize() []byte {
 		case InputCoinbase:
 			serialized.WriteByte(TxTagCoinbase)
 
-			written = binary.PutUvarint(varIntBuf, uint64(input.(InputCoinbase).Height))
+			written = binary.PutUvarint(varIntBuf, uint64(input.(InputCoinbase).BlockIndex))
 			serialized.Write(varIntBuf[:written])
 		case InputKey:
 			inputKey := input.(InputKey)

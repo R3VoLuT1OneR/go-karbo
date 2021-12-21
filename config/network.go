@@ -154,3 +154,7 @@ func (n *Network) BlockTimestampCheckWindow(majorVersion byte) int {
 
 	return blockTimestampCheckWindow
 }
+
+func (n *Network) MinedMoneyUnlockWindow() uint32 {
+	return minedMoneyUnlockWindow
+}

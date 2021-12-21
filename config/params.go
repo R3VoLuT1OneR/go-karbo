@@ -36,4 +36,6 @@ const (
 
 	blockTimestampCheckWindow   = 60
 	blockTimestampCheckWindowV1 = 11
+
+	minedMoneyUnlockWindow = 10
 )

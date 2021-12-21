@@ -27,3 +27,12 @@ var (
 	ErrBlockValidationTransactionInconsistency    = errors.New("transaction inconsistency")
 	ErrBlockValidationDuplicateTransaction        = errors.New("duplicate transaction")
 )
+
+var (
+	ErrTransactionBaseWrongInputCount        = errors.New("coinbase wrong input count")
+	ErrTransactionUnexpectedInputType        = errors.New("unexpected input type")
+	ErrTransactionBaseInputWrongBlockIndex   = errors.New("base input wrong height")
+	ErrTransactionWrongUnlockTime            = errors.New("wrong unlock time")
+	ErrTransactionBaseInvalidSignaturesCount = errors.New("coinbase invalid signature count")
+	ErrTransactionInvalidOutputsCount        = errors.New("invalid outputs count")
+)

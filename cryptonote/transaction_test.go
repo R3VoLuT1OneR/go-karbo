@@ -46,7 +46,7 @@ func TestTransaction_Deserialize(t *testing.T) {
 
 	assert.Len(t, transaction.TransactionPrefix.Inputs, 1)
 	assert.IsType(t, InputCoinbase{}, transaction.TransactionPrefix.Inputs[0])
-	assert.IsType(t, uint32(1), transaction.TransactionPrefix.Inputs[0].(InputCoinbase).Height)
+	assert.IsType(t, uint32(1), transaction.TransactionPrefix.Inputs[0].(InputCoinbase).BlockIndex)
 
 	assert.Len(t, transaction.TransactionPrefix.Outputs, 1)
 	assert.IsType(t, TransactionOutput{}, transaction.TransactionPrefix.Outputs[0])
