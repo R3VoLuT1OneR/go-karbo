@@ -61,4 +61,5 @@ var (
 	ErrTransactionInvalidFee                           = errors.New("fee is too small and it's not a fusion transaction")
 	ErrTransactionSizeTooLarge                         = errors.New("transaction is too large (in bytes)")
 	ErrTransactionOutputsInvalidCount                  = errors.New("only 1 output in coinbase transaction allowed")
+	ErrTransactionBaseOutputWrongType                  = errors.New("coinbase transaction can have only output key output type")
 )

@@ -85,26 +85,28 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	//var transactions []Transaction
-	//var transactionsSize uint64
-	//if transactions, transactionsSize, err := bc.deserializeTransactions(blogger, rawTransactions); err != nil {
-	//	return err
-	//}
-	//
-	//prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
-	//
-	//blockSize := coinbaseTransactionSize + transactionsSize
-	//if blockSize > bc.Network.MaxBlockSize(prevBlockHeight) {
-	//	err := ErrBlockValidationCumulativeSizeTooBig
-	//	blogger.Error(err)
-	//	return err
-	//}
-	//
-	//var minerReward uint64
-	//if minerReward, err := bc.validateBlock(b); err != nil {
-	//	blogger.Error(err)
-	//	return err
-	//}
+	var transactions []Transaction
+	var transactionsSize uint64
+	if transactions, transactionsSize, err := bc.deserializeTransactions(blogger, rawTransactions); err != nil {
+		return err
+	}
+
+	prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
+
+	blockSize := coinbaseTransactionSize + transactionsSize
+	if blockSize > bc.Network.MaxBlockSize(uint64(prevBlockHeight)) {
+		err := ErrBlockValidationCumulativeSizeTooBig
+		blogger.Error(err)
+		return err
+	}
+
+	if err := bc.validateBlock(blogger, b); err != nil {
+		return err
+	}
+
+	if b.MajorVersion >= config.BlockMajorVersion5 {
+		ephPubKey := b.CoinbaseTransaction.Outputs[0].Target.(OutputKey)
+	}
 
 	return nil
 }
@@ -149,15 +151,6 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) error {
 		}
 	}
 
-	if b.MajorVersion >= config.BlockMajorVersion5 {
-		cbTransactionExtraFields, parseError := b.CoinbaseTransaction.ParseExtra()
-		if parseError != nil || cbTransactionExtraFields.MiningTag != nil {
-			err := ErrBlockValidationBaseTransactionExtraMMTag
-			blogger.Error(err)
-			return err
-		}
-	}
-
 	if len(b.CoinbaseTransaction.Inputs) != 1 {
 		err := ErrTransactionInputWrongCount
 		blogger.Error(err)
@@ -190,8 +183,21 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) error {
 	}
 
 	if b.MajorVersion >= config.BlockMajorVersion5 {
+		cbTransactionExtraFields, parseError := b.CoinbaseTransaction.ParseExtra()
+		if parseError != nil || cbTransactionExtraFields.MiningTag != nil {
+			err := ErrBlockValidationBaseTransactionExtraMMTag
+			blogger.Error(err)
+			return err
+		}
+
 		if len(b.CoinbaseTransaction.Outputs) != 1 {
 			err := ErrTransactionOutputsInvalidCount
+			blogger.Error(err)
+			return err
+		}
+
+		if _, ok := b.CoinbaseTransaction.Outputs[0].Target.(OutputKey); !ok {
+			err := ErrTransactionBaseOutputWrongType
 			blogger.Error(err)
 			return err
 		}

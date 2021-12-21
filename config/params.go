@@ -29,7 +29,8 @@ const (
 	UpgradeHeightV4   = uint32(266000)
 	UpgradeHeightV4s1 = uint32(300000)
 	UpgradeHeightV4s2 = uint32(500000)
-	UpgradeHeightV5   = uint32(4294967294)
+	UpgradeHeightV4s3 = uint32(667000)
+	UpgradeHeightV5   = uint32(700000)
 
 	blockFutureTimeLimit   = DifficultyTarget * 7
 	blockFutureTimeLimitV1 = DifficultyTarget * 3
