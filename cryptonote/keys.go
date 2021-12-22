@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"github.com/r3volut1oner/go-karbo/crypto/hash"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"io"
 
 	ed "github.com/r3volut1oner/go-karbo/crypto/edwards25519"
@@ -88,7 +88,7 @@ func PublicFromPrivate(k Key) (Key, error) {
 // ViewFromSpend returns deterministic private key
 func ViewFromSpend(k Key) Key {
 	keyBytes := k.Bytes()[:]
-	keyHash := hash.Keccak(&keyBytes)
+	keyHash := crypto.Keccak(keyBytes)
 	key := KeyFromArray(reduceBytesToPoint(&keyHash))
 
 	return key

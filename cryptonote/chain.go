@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/r3volut1oner/go-karbo/utils"
 	log "github.com/sirupsen/logrus"
 	"math"
@@ -105,6 +106,8 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 	}
 
 	if b.MajorVersion >= config.BlockMajorVersion5 {
+		// TODO: Implement block.Signature and verify signature
+		sigHash := crypto.Keccak(b.HashingBytes())
 		ephPubKey := b.CoinbaseTransaction.Outputs[0].Target.(OutputKey)
 	}
 

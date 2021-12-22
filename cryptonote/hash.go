@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"github.com/r3volut1oner/go-karbo/crypto/hash"
+	"github.com/r3volut1oner/go-karbo/crypto"
 )
 
 const HashLength = 32
@@ -14,7 +14,7 @@ type Hash [HashLength]byte
 type HashList []Hash
 
 func (h *Hash) FromBytes(b []byte) {
-	hashed := hash.Keccak(&b)
+	hashed := crypto.Keccak(b)
 	copy(h[:HashLength], hashed[:HashLength])
 }
 
@@ -31,7 +31,7 @@ func (h *Hash) String() string {
 }
 
 func HashFromBytes(b []byte) Hash {
-	hashed := hash.Keccak(&b)
+	hashed := crypto.Keccak(b)
 	var h Hash
 	copy(h[:32], hashed[:32])
 	return h

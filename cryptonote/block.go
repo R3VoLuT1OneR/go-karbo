@@ -45,24 +45,9 @@ func (b *Block) Hash() *Hash {
 		var allBytesBuffer bytes.Buffer
 
 		/**
-		 * Write block header bytes
+		 * First part of the hashing bytes
 		 */
-		allBytesBuffer.Write(b.BlockHeader.serialize())
-
-		/**
-		 * Write merkle root hash bytes
-		 */
-		baseTransactionHash := b.CoinbaseTransaction.Hash()
-		hl := HashList{*baseTransactionHash}
-		hl = append(hl, b.TransactionsHashes...)
-		allBytesBuffer.Write(hl.merkleRootHash()[:])
-
-		/**
-		 * Write transactions number
-		 */
-		transactionCount := make([]byte, binary.MaxVarintLen64)
-		written := binary.PutUvarint(transactionCount, uint64(len(hl)))
-		allBytesBuffer.Write(transactionCount[:written])
+		allBytesBuffer.Write(b.HashingBytes())
 
 		if b.MajorVersion == config.BlockMajorVersion2 || b.MajorVersion == config.BlockMajorVersion3 {
 			allBytesBuffer.Write(b.Parent.serialize(true))
@@ -73,7 +58,7 @@ func (b *Block) Hash() *Hash {
 		 */
 		allBytes := allBytesBuffer.Bytes()
 		allBytesCount := make([]byte, binary.MaxVarintLen64)
-		written = binary.PutUvarint(allBytesCount, uint64(len(allBytes)))
+		written := binary.PutUvarint(allBytesCount, uint64(len(allBytes)))
 
 		var h bytes.Buffer
 		h.Write(allBytesCount[:written])
@@ -154,6 +139,34 @@ func (b *Block) Serialize() []byte {
 	}
 
 	return serialized.Bytes()
+}
+
+// HashingBytes is a copy of the C++ implementation of getBlockHashingBinaryArray method.
+// it is used for first step of the serialization
+func (b *Block) HashingBytes() []byte {
+	var allBytesBuffer bytes.Buffer
+
+	/**
+	 * Write block header bytes
+	 */
+	allBytesBuffer.Write(b.BlockHeader.serialize())
+
+	/**
+	 * Write merkle root hash bytes
+	 */
+	baseTransactionHash := b.CoinbaseTransaction.Hash()
+	hl := HashList{*baseTransactionHash}
+	hl = append(hl, b.TransactionsHashes...)
+	allBytesBuffer.Write(hl.merkleRootHash()[:])
+
+	/**
+	 * Write transactions number
+	 */
+	transactionCount := make([]byte, binary.MaxVarintLen64)
+	written := binary.PutUvarint(transactionCount, uint64(len(hl)))
+	allBytesBuffer.Write(transactionCount[:written])
+
+	return allBytesBuffer.Bytes()
 }
 
 func (h *BlockHeader) deserialize(reader *bytes.Reader) error {

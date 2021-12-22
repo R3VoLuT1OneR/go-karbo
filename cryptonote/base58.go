@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/r3volut1oner/go-karbo/crypto/hash"
+	"github.com/r3volut1oner/go-karbo/crypto"
 )
 
 const (
@@ -153,7 +153,7 @@ func DecodeAddr(addr string) (tag uint64, data []byte, err error) {
 	checksum := decoded[checksumStart:]
 	ddata := decoded[:checksumStart]
 
-	if !bytes.Equal(checksum, hash.Keccak(&ddata)[:checksumSize]) {
+	if !bytes.Equal(checksum, crypto.Keccak(ddata)[:checksumSize]) {
 		err = fmt.Errorf("invalid checksum")
 		return
 	}
@@ -226,7 +226,7 @@ func EncodeAddr(tag uint64, data []byte) string {
 
 	buf = append([]byte{}, vbuf[:vlen]...)
 	buf = append(buf, data...)
-	buf = append(buf, hash.Keccak(&buf)[:checksumSize]...)
+	buf = append(buf, crypto.Keccak(buf)[:checksumSize]...)
 
 	return encode(buf)
 }
