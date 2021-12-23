@@ -679,14 +679,17 @@ func (p *ProjectiveGroupElement) Double(r *CompletedGroupElement) {
 	FeSub(&r.T, &r.T, &r.Z)
 }
 
-func (p *ProjectiveGroupElement) ToBytes(s *[32]byte) {
+func (p *ProjectiveGroupElement) ToBytes() [32]byte {
+	var s [32]byte
 	var recip, x, y FieldElement
 
 	FeInvert(&recip, &p.Z)
 	FeMul(&x, &p.X, &recip)
 	FeMul(&y, &p.Y, &recip)
-	FeToBytes(s, &y)
+	FeToBytes(&s, &y)
 	s[31] ^= FeIsNegative(&x) << 7
+
+	return s
 }
 
 func (p *ExtendedGroupElement) Zero() {
@@ -731,7 +734,29 @@ func (p *ExtendedGroupElement) ToBytes() [32]byte {
 func (p *ExtendedGroupElement) FromBytes(s *[32]byte) bool {
 	var u, v, v3, vxx, check FieldElement
 
-	FeFromBytes(&p.Y, s)
+	// FeFromBytes(&p.Y, s)
+
+	h0 := load4(s[:])
+	h1 := load3(s[4:]) << 6
+	h2 := load3(s[7:]) << 5
+	h3 := load3(s[10:]) << 3
+	h4 := load3(s[13:]) << 2
+	h5 := load4(s[16:])
+	h6 := load3(s[20:]) << 7
+	h7 := load3(s[23:]) << 5
+	h8 := load3(s[26:]) << 4
+	h9 := (load3(s[29:]) & 8388607) << 2
+
+	// src/crypto/crypto-ops.c:1254
+	// Validate the number to be canonical
+	if h9 == 33554428 && h8 == 268435440 && h7 == 536870880 && h6 == 2147483520 &&
+		h5 == 4294967295 && h4 == 67108860 && h3 == 134217720 && h2 == 536870880 &&
+		h1 == 1073741760 && h0 >= 4294967277 {
+		return false
+	}
+
+	FeCombine(&p.Y, h0, h1, h2, h3, h4, h5, h6, h7, h8, h9)
+
 	FeOne(&p.Z)
 	FeSquare(&u, &p.Y)
 	FeMul(&v, &u, &d)
@@ -767,6 +792,11 @@ func (p *ExtendedGroupElement) FromBytes(s *[32]byte) bool {
 	}
 
 	if FeIsNegative(&p.X) != (s[31] >> 7) {
+		// src/crypto/crypto-ops.c:1306
+		// If x = 0, the sign must be positive
+		if FeIsNonZero(&p.X) == 0 {
+			return false
+		}
 		FeNeg(&p.X, &p.X)
 	}
 
@@ -1024,6 +1054,211 @@ func GeScalarMultBase(h *ExtendedGroupElement, a [32]byte) {
 		geMixedAdd(&r, h, &t)
 		r.ToExtended(h)
 	}
+}
+
+func ScSub(a, b [32]byte) [32]byte {
+	var s [32]byte
+
+	a0 := 2097151 & load3(a[:])
+	a1 := 2097151 & (load4(a[2:]) >> 5)
+	a2 := 2097151 & (load3(a[5:]) >> 2)
+	a3 := 2097151 & (load4(a[7:]) >> 7)
+	a4 := 2097151 & (load4(a[10:]) >> 4)
+	a5 := 2097151 & (load3(a[13:]) >> 1)
+	a6 := 2097151 & (load4(a[15:]) >> 6)
+	a7 := 2097151 & (load3(a[18:]) >> 3)
+	a8 := 2097151 & load3(a[21:])
+	a9 := 2097151 & (load4(a[23:]) >> 5)
+	a10 := 2097151 & (load3(a[26:]) >> 2)
+	a11 := load4(a[28:]) >> 7
+
+	b0 := 2097151 & load3(b[:])
+	b1 := 2097151 & (load4(b[2:]) >> 5)
+	b2 := 2097151 & (load3(b[5:]) >> 2)
+	b3 := 2097151 & (load4(b[7:]) >> 7)
+	b4 := 2097151 & (load4(b[10:]) >> 4)
+	b5 := 2097151 & (load3(b[13:]) >> 1)
+	b6 := 2097151 & (load4(b[15:]) >> 6)
+	b7 := 2097151 & (load3(b[18:]) >> 3)
+	b8 := 2097151 & load3(b[21:])
+	b9 := 2097151 & (load4(b[23:]) >> 5)
+	b10 := 2097151 & (load3(b[26:]) >> 2)
+	b11 := load4(b[28:]) >> 7
+
+	s0 := a0 - b0
+	s1 := a1 - b1
+	s2 := a2 - b2
+	s3 := a3 - b3
+	s4 := a4 - b4
+	s5 := a5 - b5
+	s6 := a6 - b6
+	s7 := a7 - b7
+	s8 := a8 - b8
+	s9 := a9 - b9
+	s10 := a10 - b10
+	s11 := a11 - b11
+	s12 := int64(0)
+
+	var carry [12]int64
+
+	carry[0] = (s0 + (1 << 20)) >> 21
+	s1 += carry[0]
+	s0 -= carry[0] << 21
+	carry[2] = (s2 + (1 << 20)) >> 21
+	s3 += carry[2]
+	s2 -= carry[2] << 21
+	carry[4] = (s4 + (1 << 20)) >> 21
+	s5 += carry[4]
+	s4 -= carry[4] << 21
+	carry[6] = (s6 + (1 << 20)) >> 21
+	s7 += carry[6]
+	s6 -= carry[6] << 21
+	carry[8] = (s8 + (1 << 20)) >> 21
+	s9 += carry[8]
+	s8 -= carry[8] << 21
+	carry[10] = (s10 + (1 << 20)) >> 21
+	s11 += carry[10]
+	s10 -= carry[10] << 21
+
+	carry[1] = (s1 + (1 << 20)) >> 21
+	s2 += carry[1]
+	s1 -= carry[1] << 21
+	carry[3] = (s3 + (1 << 20)) >> 21
+	s4 += carry[3]
+	s3 -= carry[3] << 21
+	carry[5] = (s5 + (1 << 20)) >> 21
+	s6 += carry[5]
+	s5 -= carry[5] << 21
+	carry[7] = (s7 + (1 << 20)) >> 21
+	s8 += carry[7]
+	s7 -= carry[7] << 21
+	carry[9] = (s9 + (1 << 20)) >> 21
+	s10 += carry[9]
+	s9 -= carry[9] << 21
+	carry[11] = (s11 + (1 << 20)) >> 21
+	s12 += carry[11]
+	s11 -= carry[11] << 21
+
+	s0 += s12 * 666643
+	s1 += s12 * 470296
+	s2 += s12 * 654183
+	s3 -= s12 * 997805
+	s4 += s12 * 136657
+	s5 -= s12 * 683901
+	s12 = 0
+
+	carry[0] = s0 >> 21
+	s1 += carry[0]
+	s0 -= carry[0] << 21
+	carry[1] = s1 >> 21
+	s2 += carry[1]
+	s1 -= carry[1] << 21
+	carry[2] = s2 >> 21
+	s3 += carry[2]
+	s2 -= carry[2] << 21
+	carry[3] = s3 >> 21
+	s4 += carry[3]
+	s3 -= carry[3] << 21
+	carry[4] = s4 >> 21
+	s5 += carry[4]
+	s4 -= carry[4] << 21
+	carry[5] = s5 >> 21
+	s6 += carry[5]
+	s5 -= carry[5] << 21
+	carry[6] = s6 >> 21
+	s7 += carry[6]
+	s6 -= carry[6] << 21
+	carry[7] = s7 >> 21
+	s8 += carry[7]
+	s7 -= carry[7] << 21
+	carry[8] = s8 >> 21
+	s9 += carry[8]
+	s8 -= carry[8] << 21
+	carry[9] = s9 >> 21
+	s10 += carry[9]
+	s9 -= carry[9] << 21
+	carry[10] = s10 >> 21
+	s11 += carry[10]
+	s10 -= carry[10] << 21
+	carry[11] = s11 >> 21
+	s12 += carry[11]
+	s11 -= carry[11] << 21
+
+	s0 += s12 * 666643
+	s1 += s12 * 470296
+	s2 += s12 * 654183
+	s3 -= s12 * 997805
+	s4 += s12 * 136657
+	s5 -= s12 * 683901
+
+	carry[0] = s0 >> 21
+	s1 += carry[0]
+	s0 -= carry[0] << 21
+	carry[1] = s1 >> 21
+	s2 += carry[1]
+	s1 -= carry[1] << 21
+	carry[2] = s2 >> 21
+	s3 += carry[2]
+	s2 -= carry[2] << 21
+	carry[3] = s3 >> 21
+	s4 += carry[3]
+	s3 -= carry[3] << 21
+	carry[4] = s4 >> 21
+	s5 += carry[4]
+	s4 -= carry[4] << 21
+	carry[5] = s5 >> 21
+	s6 += carry[5]
+	s5 -= carry[5] << 21
+	carry[6] = s6 >> 21
+	s7 += carry[6]
+	s6 -= carry[6] << 21
+	carry[7] = s7 >> 21
+	s8 += carry[7]
+	s7 -= carry[7] << 21
+	carry[8] = s8 >> 21
+	s9 += carry[8]
+	s8 -= carry[8] << 21
+	carry[9] = s9 >> 21
+	s10 += carry[9]
+	s9 -= carry[9] << 21
+	carry[10] = s10 >> 21
+	s11 += carry[10]
+	s10 -= carry[10] << 21
+
+	s[0] = byte(s0 >> 0)
+	s[1] = byte(s0 >> 8)
+	s[2] = byte((s0 >> 16) | (s1 << 5))
+	s[3] = byte(s1 >> 3)
+	s[4] = byte(s1 >> 11)
+	s[5] = byte((s1 >> 19) | (s2 << 2))
+	s[6] = byte(s2 >> 6)
+	s[7] = byte((s2 >> 14) | (s3 << 7))
+	s[8] = byte(s3 >> 1)
+	s[9] = byte(s3 >> 9)
+	s[10] = byte((s3 >> 17) | (s4 << 4))
+	s[11] = byte(s4 >> 4)
+	s[12] = byte(s4 >> 12)
+	s[13] = byte((s4 >> 20) | (s5 << 1))
+	s[14] = byte(s5 >> 7)
+	s[15] = byte((s5 >> 15) | (s6 << 6))
+	s[16] = byte(s6 >> 2)
+	s[17] = byte(s6 >> 10)
+	s[18] = byte((s6 >> 18) | (s7 << 3))
+	s[19] = byte(s7 >> 5)
+	s[20] = byte(s7 >> 13)
+	s[21] = byte(s8 >> 0)
+	s[22] = byte(s8 >> 8)
+	s[23] = byte((s8 >> 16) | (s9 << 5))
+	s[24] = byte(s9 >> 3)
+	s[25] = byte(s9 >> 11)
+	s[26] = byte((s9 >> 19) | (s10 << 2))
+	s[27] = byte(s10 >> 6)
+	s[28] = byte((s10 >> 14) | (s11 << 7))
+	s[29] = byte(s11 >> 1)
+	s[30] = byte(s11 >> 9)
+	s[31] = byte(s11 >> 17)
+
+	return s
 }
 
 // The scalars are GF(2^252 + 27742317777372353535851937790883648493).
@@ -2433,6 +2668,7 @@ func ScMinimal(scalar *[32]byte) bool {
 }
 
 // ScCheck is point on the curve
+// Deprecated: Must be checked and rewritten
 func ScCheck(s [32]byte) bool {
 	s0 := load4(s[0:])
 	s1 := load4(s[4:])

@@ -44,9 +44,11 @@ func (k *key) BytesSlice() []byte {
 	return k.b[:]
 }
 
-// Check that the point is not curve
+// Check that the point is on curve
 func (k *key) Check() bool {
-	return ed.ScCheck(k.Bytes())
+	var point ed.ExtendedGroupElement
+	b := k.Bytes()
+	return point.FromBytes(&b)
 }
 
 // KeyFromHex returns key from hex string
