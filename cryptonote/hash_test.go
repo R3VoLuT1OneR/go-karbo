@@ -3,6 +3,7 @@ package cryptonote
 import (
 	"bufio"
 	"encoding/hex"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"strings"
@@ -32,7 +33,7 @@ func TestHashFromBytes(t *testing.T) {
 		testBytes, err := hex.DecodeString(cases[1])
 		check(err)
 
-		var h Hash
+		var h crypto.Hash
 		h.FromBytes(testBytes)
 
 		assert.Equal(t, expected, h[:])
@@ -59,15 +60,15 @@ func TestMerkleRootTree(t *testing.T) {
 		testBytes, err := hex.DecodeString(cases[1])
 		check(err)
 
-		list := HashList{}
+		list := crypto.HashList{}
 		listLen := len(testBytes) / 32
 		for i := 0; i < listLen; i++ {
-			var h Hash
+			var h crypto.Hash
 			copy(h[:], testBytes[(i*32):(i*32)+32])
 			list = append(list, h)
 		}
 
-		mh := list.merkleRootHash()
+		mh := list.MerkleRootHash()
 
 		assert.Equal(t, expected, mh[:])
 		times++

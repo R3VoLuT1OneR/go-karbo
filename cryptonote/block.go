@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/r3volut1oner/go-karbo/config"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"unsafe"
 )
 
@@ -13,12 +14,12 @@ type ParentBlock struct {
 	MinorVersion byte
 	Timestamp    uint64
 	Nonce        uint32
-	Prev         Hash
+	Prev         crypto.Hash
 
 	TransactionsCount     uint16
-	BaseTransactionBranch HashList
+	BaseTransactionBranch crypto.HashList
 	BaseTransaction       BaseTransaction
-	BlockchainBranch      []Hash
+	BlockchainBranch      []crypto.Hash
 }
 
 type BlockHeader struct {
@@ -26,21 +27,22 @@ type BlockHeader struct {
 	MinorVersion      byte
 	Nonce             uint32
 	Timestamp         uint64
-	PreviousBlockHash Hash
+	PreviousBlockHash crypto.Hash
 }
 
 type Block struct {
 	Parent              ParentBlock
 	CoinbaseTransaction Transaction
-	TransactionsHashes  []Hash
+	TransactionsHashes  []crypto.Hash
+	Signature           crypto.Signature
 
-	hash             *Hash
-	hashTransactions *Hash
+	hash             *crypto.Hash
+	hashTransactions *crypto.Hash
 
 	BlockHeader
 }
 
-func (b *Block) Hash() *Hash {
+func (b *Block) Hash() *crypto.Hash {
 	if b.hash == nil {
 		var allBytesBuffer bytes.Buffer
 
@@ -65,7 +67,7 @@ func (b *Block) Hash() *Hash {
 		h.Write(allBytes)
 
 		hashBytes := h.Bytes()
-		b.hash = new(Hash)
+		b.hash = new(crypto.Hash)
 		b.hash.FromBytes(hashBytes)
 	}
 
@@ -90,6 +92,13 @@ func (b *Block) Deserialize(r *bytes.Reader) error {
 	}
 
 	majorVersion := b.BlockHeader.MajorVersion
+
+	if majorVersion >= config.BlockMajorVersion5 {
+		if err := b.Signature.Deserialize(r); err != nil {
+			return err
+		}
+	}
+
 	if majorVersion == config.BlockMajorVersion2 || majorVersion == config.BlockMajorVersion3 {
 		if err := b.Parent.deserialize(r); err != nil {
 			return err
@@ -105,9 +114,9 @@ func (b *Block) Deserialize(r *bytes.Reader) error {
 		return err
 	}
 
-	hl := HashList{}
+	hl := crypto.HashList{}
 	for i := uint64(0); i < hashesCount; i++ {
-		var h Hash
+		var h crypto.Hash
 		if err := h.Read(r); err != nil {
 			return err
 		}
@@ -123,8 +132,14 @@ func (b *Block) Serialize() []byte {
 
 	serialized.Write(b.BlockHeader.serialize())
 
-	mv := b.BlockHeader.MajorVersion
-	if mv == config.BlockMajorVersion2 || mv == config.BlockMajorVersion3 {
+	majorVersion := b.BlockHeader.MajorVersion
+
+	if majorVersion >= config.BlockMajorVersion5 {
+		sSignature, _ := b.Signature.Serialize()
+		serialized.Write(sSignature)
+	}
+
+	if majorVersion == config.BlockMajorVersion2 || majorVersion == config.BlockMajorVersion3 {
 		serialized.Write(b.Parent.serialize(false))
 	}
 
@@ -155,9 +170,9 @@ func (b *Block) HashingBytes() []byte {
 	 * Write merkle root hash bytes
 	 */
 	baseTransactionHash := b.CoinbaseTransaction.Hash()
-	hl := HashList{*baseTransactionHash}
+	hl := crypto.HashList{*baseTransactionHash}
 	hl = append(hl, b.TransactionsHashes...)
-	allBytesBuffer.Write(hl.merkleRootHash()[:])
+	allBytesBuffer.Write(hl.MerkleRootHash()[:])
 
 	/**
 	 * Write transactions number
@@ -170,7 +185,7 @@ func (b *Block) HashingBytes() []byte {
 }
 
 func (h *BlockHeader) deserialize(reader *bytes.Reader) error {
-	var prev Hash
+	var prev crypto.Hash
 	var ts uint64
 	var nonce uint32
 
@@ -287,7 +302,7 @@ func (pb *ParentBlock) serialize(hashing bool) []byte {
 }
 
 func (pb *ParentBlock) deserialize(r *bytes.Reader) error {
-	var prev Hash
+	var prev crypto.Hash
 	var nonce uint32
 
 	majorVersion, err := binary.ReadUvarint(r)
@@ -318,10 +333,10 @@ func (pb *ParentBlock) deserialize(r *bytes.Reader) error {
 		return err
 	}
 
-	var baseTxBranch HashList
+	var baseTxBranch crypto.HashList
 	branchSize := treeDepth(int(txCount))
 	for i := 0; i < branchSize; i++ {
-		var th Hash
+		var th crypto.Hash
 		if err := th.Read(r); err != nil {
 			return err
 		}
@@ -346,9 +361,9 @@ func (pb *ParentBlock) deserialize(r *bytes.Reader) error {
 		return errors.New("wrong merge mining tag depth")
 	}
 
-	var blockchainBranch HashList
+	var blockchainBranch crypto.HashList
 	for i := uint64(0); i < tef.MiningTag.Depth; i++ {
-		var h Hash
+		var h crypto.Hash
 		if err := h.Read(r); err != nil {
 			return err
 		}

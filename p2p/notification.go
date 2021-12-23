@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"github.com/r3volut1oner/go-karbo/encoding/binary"
 	"reflect"
@@ -34,25 +35,25 @@ type NotificationNewBlock struct {
 }
 
 type NotificationNewTransactions struct {
-	Stem         bool              `binary:"stem"`
-	Transactions []cryptonote.Hash `binary:"txs,binary"`
+	Stem         bool          `binary:"stem"`
+	Transactions []crypto.Hash `binary:"txs,binary"`
 }
 
 type NotificationRequestGetObjects struct {
-	Transactions []cryptonote.Hash `binary:"txs,binary"`
-	Blocks       []cryptonote.Hash `binary:"blocks,binary"`
+	Transactions []crypto.Hash `binary:"txs,binary"`
+	Blocks       []crypto.Hash `binary:"blocks,binary"`
 }
 
 type NotificationResponseGetObjects struct {
 	// Exists in old legacy code in definition but not exists in notification
-	Transactions            []string          `binary:"txs,omitempty"`
-	Blocks                  []RawBlock        `binary:"blocks,array"`
-	CurrentBlockchainHeight uint32            `binary:"current_blockchain_height"`
-	MissedIds               []cryptonote.Hash `binary:"missed_ids,binary,omitempty"`
+	Transactions            []string      `binary:"txs,omitempty"`
+	Blocks                  []RawBlock    `binary:"blocks,array"`
+	CurrentBlockchainHeight uint32        `binary:"current_blockchain_height"`
+	MissedIds               []crypto.Hash `binary:"missed_ids,binary,omitempty"`
 }
 
 type NotificationTxPool struct {
-	Transactions []cryptonote.Hash `binary:"txs"`
+	Transactions []crypto.Hash `binary:"txs"`
 }
 
 type NotificationNewLiteBlock struct {
@@ -62,13 +63,13 @@ type NotificationNewLiteBlock struct {
 }
 
 type NotificationRequestChain struct {
-	Blocks []cryptonote.Hash `binary:"block_ids,binary"`
+	Blocks []crypto.Hash `binary:"block_ids,binary"`
 }
 
 type NotificationResponseChainEntry struct {
-	StartHeight  uint32            `binary:"start_height"`
-	TotalHeight  uint32            `binary:"total_height"`
-	BlocksHashes []cryptonote.Hash `binary:"m_block_ids,binary"`
+	StartHeight  uint32        `binary:"start_height"`
+	TotalHeight  uint32        `binary:"total_height"`
+	BlocksHashes []crypto.Hash `binary:"m_block_ids,binary"`
 }
 
 var mapNotificationID = map[uint32]interface{}{

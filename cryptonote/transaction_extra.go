@@ -5,23 +5,24 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"io"
 )
 
 var (
-	ErrPaddingNotZero = errors.New("padding byte is not zero")
-	ErrPaddingMax = errors.New("padding size bigger than allowed")
-	ErrNonceMax = errors.New("nonce size bigger than allowed")
+	ErrPaddingNotZero    = errors.New("padding byte is not zero")
+	ErrPaddingMax        = errors.New("padding size bigger than allowed")
+	ErrNonceMax          = errors.New("nonce size bigger than allowed")
 	ErrMergeMiningTagMax = errors.New("merge mining tag is not 33")
 )
 
 var (
 	TxExtraPaddingMax = 255
-	TxExtraNonceMax = 255
+	TxExtraNonceMax   = 255
 
-	TxExtraTagPadding = byte(0x00)
-	TxExtraTagPubkey = byte(0x01)
-	TxExtraTagNonce = byte(0x02)
+	TxExtraTagPadding     = byte(0x00)
+	TxExtraTagPubkey      = byte(0x01)
+	TxExtraTagNonce       = byte(0x02)
 	TxExtraTagMergeMining = byte(0x03)
 
 	TxExtraNoncePaymentId = 0x00
@@ -30,14 +31,14 @@ var (
 )
 
 type TransactionExtraMergeMiningTag struct {
-	Depth uint64
-	MerkleRoot Hash
+	Depth      uint64
+	MerkleRoot crypto.Hash
 }
 
 type TransactionExtraFields struct {
-	PublicKey 	Key
-	Nonce 		[]byte
-	MiningTag   *TransactionExtraMergeMiningTag
+	PublicKey crypto.Key
+	Nonce     []byte
+	MiningTag *TransactionExtraMergeMiningTag
 
 	bytes []byte
 }
@@ -79,7 +80,7 @@ func TxExtraFromBytes(b []byte) (*TransactionExtraFields, error) {
 			if err := binary.Read(r, binary.LittleEndian, kb); err != nil {
 				return nil, err
 			}
-			tef.PublicKey, err = KeyFromBytes(&kb)
+			tef.PublicKey, err = crypto.KeyFromBytes(kb)
 			if err != nil {
 				return nil, err
 			}
@@ -113,7 +114,7 @@ func TxExtraFromBytes(b []byte) (*TransactionExtraFields, error) {
 				return nil, err
 			}
 
-			var h Hash
+			var h crypto.Hash
 			if err := h.Read(r); err != nil {
 				return nil, err
 			}

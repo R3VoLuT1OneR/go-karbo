@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/dgraph-io/badger/v3"
+	"github.com/r3volut1oner/go-karbo/crypto"
 )
 
 var (
@@ -18,10 +19,10 @@ type Store interface {
 	Init(bc *BlockChain) error
 
 	// GetBlockHashByHeight provides block by hash
-	GetBlockHashByHeight(uint32) (*Hash, error)
+	GetBlockHashByHeight(uint32) (*crypto.Hash, error)
 
 	// GetBlockIndexByHash returns height for specific block hash
-	GetBlockIndexByHash(*Hash) (uint32, error)
+	GetBlockIndexByHash(*crypto.Hash) (uint32, error)
 
 	// GetBlockByHeight returns block by height
 	GetBlockByHeight(uint32) (*Block, error)
@@ -30,7 +31,7 @@ type Store interface {
 	AppendBlock(*Block) error
 
 	// HasBlock verifies that block is saved in DB
-	HasBlock(*Hash) (bool, error)
+	HasBlock(*crypto.Hash) (bool, error)
 
 	// TopIndex of current saved blockchain
 	TopIndex() (uint32, error)
@@ -60,11 +61,11 @@ func btoi(b []byte) uint64 {
 	return binary.LittleEndian.Uint64(b)
 }
 
-func keyBlockByHash(h *Hash) []byte {
+func keyBlockByHash(h *crypto.Hash) []byte {
 	return []byte("block-" + h.String())
 }
 
-func keyBlockHeightByHash(h *Hash) []byte {
+func keyBlockHeightByHash(h *crypto.Hash) []byte {
 	return []byte("block-height-" + h.String())
 }
 
@@ -162,7 +163,7 @@ func (db *badgerDB) AppendBlock(b *Block) error {
 	})
 }
 
-func (db *badgerDB) HasBlock(hash *Hash) (bool, error) {
+func (db *badgerDB) HasBlock(hash *crypto.Hash) (bool, error) {
 	hasBlock := false
 
 	err := db.badger.View(func(txn *badger.Txn) error {
@@ -184,8 +185,8 @@ func (db *badgerDB) HasBlock(hash *Hash) (bool, error) {
 	return hasBlock, nil
 }
 
-func (db *badgerDB) GetBlockHashByHeight(height uint32) (*Hash, error) {
-	var h *Hash
+func (db *badgerDB) GetBlockHashByHeight(height uint32) (*crypto.Hash, error) {
+	var h *crypto.Hash
 
 	err := db.badger.View(func(txn *badger.Txn) error {
 		stxn := &storeTxn{txn}
@@ -207,7 +208,7 @@ func (db *badgerDB) GetBlockHashByHeight(height uint32) (*Hash, error) {
 	return h, err
 }
 
-func (db *badgerDB) GetBlockIndexByHash(h *Hash) (uint32, error) {
+func (db *badgerDB) GetBlockIndexByHash(h *crypto.Hash) (uint32, error) {
 	var height uint32
 
 	err := db.badger.View(func(txn *badger.Txn) error {
@@ -309,8 +310,8 @@ func (db *badgerDB) TopIndex() (uint32, error) {
 	return uint32(height), nil
 }
 
-func (txn *storeTxn) getHashByKey(b []byte) (*Hash, error) {
-	var h Hash
+func (txn *storeTxn) getHashByKey(b []byte) (*crypto.Hash, error) {
+	var h crypto.Hash
 
 	item, err := txn.Get(b)
 

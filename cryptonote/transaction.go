@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/r3volut1oner/go-karbo/crypto"
 )
 
 const (
@@ -13,9 +14,9 @@ const (
 	TxTagMultisignature      = 0x3
 )
 
-type KeyImage EllipticCurvePointer
+type KeyImage crypto.EllipticCurvePoint
 
-type TransactionSignatures [][]Signature
+type TransactionSignatures [][]crypto.Signature
 
 type InputCoinbase struct {
 	BlockIndex uint32
@@ -46,11 +47,11 @@ func (i InputMultisignature) sigCount() int {
 }
 
 type OutputKey struct {
-	Key
+	crypto.Key
 }
 
 type OutputMultisignature struct {
-	Keys                    []Key
+	Keys                    []crypto.Key
 	RequiredSignaturesCount byte
 }
 
@@ -77,14 +78,14 @@ type TransactionPrefix struct {
 type BaseTransaction struct {
 	*TransactionPrefix
 
-	hash *Hash
+	hash *crypto.Hash
 }
 
 type Transaction struct {
 	TransactionPrefix
 	TransactionSignatures
 
-	hash *Hash
+	hash *crypto.Hash
 }
 
 func (t *Transaction) Serialize() []byte {
@@ -110,18 +111,18 @@ func (t *Transaction) Size() uint64 {
 	return uint64(len(t.Serialize()))
 }
 
-func (t *Transaction) Hash() *Hash {
+func (t *Transaction) Hash() *crypto.Hash {
 	if t.hash == nil {
-		t.hash = new(Hash)
+		t.hash = new(crypto.Hash)
 		t.hash.FromBytes(t.Serialize())
 	}
 
 	return t.hash
 }
 
-func (t *BaseTransaction) Hash() *Hash {
+func (t *BaseTransaction) Hash() *crypto.Hash {
 	if t.hash == nil {
-		t.hash = new(Hash)
+		t.hash = new(crypto.Hash)
 		t.hash.FromBytes(t.TransactionPrefix.serialize())
 	}
 
@@ -183,7 +184,7 @@ func (tp *TransactionPrefix) serialize() []byte {
 		switch output.Target.(type) {
 		case OutputKey:
 			serialized.WriteByte(TxTagKey)
-			serialized.Write(output.Target.(OutputKey).Bytes()[:])
+			serialized.Write(output.Target.(OutputKey).BytesSlice())
 		default:
 		}
 	}
@@ -305,7 +306,7 @@ func (tp *TransactionPrefix) deserialize(br *bytes.Reader) error {
 
 			tp.Outputs[outputIndex] = TransactionOutput{
 				Amount: amount,
-				Target: OutputKey{KeyFromArray(&keyBytes)},
+				Target: OutputKey{crypto.KeyFromArray(keyBytes)},
 			}
 		case TxTagMultisignature:
 			// TODO: Implement multisig
@@ -370,7 +371,7 @@ func (ts *TransactionSignatures) deserialize(br *bytes.Reader, t *Transaction) e
 			continue
 		}
 
-		sigs := make([]Signature, sigSize)
+		sigs := make([]crypto.Signature, sigSize)
 		for i := 0; i < sigSize; i++ {
 			if err := binary.Read(br, binary.LittleEndian, &sigs[i]); err != nil {
 				return err

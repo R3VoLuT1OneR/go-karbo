@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/r3volut1oner/go-karbo/config"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"github.com/r3volut1oner/go-karbo/encoding/binary"
 	"github.com/signalsciences/ipv4"
@@ -32,8 +33,8 @@ type BasicNodeData struct {
 }
 
 type SyncData struct {
-	CurrentHeight uint32          `binary:"current_height"`
-	TopBlockHash  cryptonote.Hash `binary:"top_id,binary"`
+	CurrentHeight uint32      `binary:"current_height"`
+	TopBlockHash  crypto.Hash `binary:"top_id,binary"`
 }
 
 type NetworkAddress struct {

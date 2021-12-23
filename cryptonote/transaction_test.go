@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"github.com/r3volut1oner/go-karbo/config"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"
@@ -59,7 +60,7 @@ func TestTransaction_Deserialize(t *testing.T) {
 			0xff, 0x88, 0x83, 0xf8, 0x2, 0x4f, 0x51, 0x42,
 			0xee, 0x49, 0x4f, 0xfb, 0xbd, 0x8, 0x80, 0x71,
 		},
-		*transaction.TransactionPrefix.Outputs[0].Target.(OutputKey).Key.Bytes(),
+		transaction.TransactionPrefix.Outputs[0].Target.(OutputKey).Key.Bytes(),
 	)
 
 	assert.Equal(t,
@@ -75,7 +76,7 @@ func TestTransaction_Deserialize(t *testing.T) {
 	serialized := transaction.Serialize()
 	assert.Equal(t, serializedTransaction, serialized)
 
-	expectedHash := Hash{
+	expectedHash := crypto.Hash{
 		0x11, 0xa, 0xf2, 0xe4, 0x2d, 0xd6, 0x29, 0xe3,
 		0xda, 0x49, 0xec, 0xe8, 0xc, 0x40, 0x7, 0xc9,
 		0xe, 0xc3, 0x20, 0xa8, 0xa4, 0x55, 0xcf, 0xd2,

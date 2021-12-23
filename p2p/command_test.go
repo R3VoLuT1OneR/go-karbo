@@ -2,7 +2,7 @@ package p2p
 
 import (
 	"github.com/r3volut1oner/go-karbo/config"
-	"github.com/r3volut1oner/go-karbo/cryptonote"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/r3volut1oner/go-karbo/encoding/binary"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -764,7 +764,7 @@ func TestDecodeHandShakeRequest(t *testing.T) {
 
 	assert.Equal(t, uint32(0x8cce7), decoded.PayloadData.CurrentHeight)
 	assert.Equal(t,
-		cryptonote.Hash{
+		crypto.Hash{
 			0x8, 0xc, 0xe5, 0xe5, 0x96, 0x77, 0x9, 0x4b,
 			0xde, 0xda, 0xae, 0xea, 0xe9, 0xa8, 0x96, 0x4b,
 			0x60, 0xfe, 0xf7, 0x26, 0x70, 0x9c, 0xf6, 0x5f,
@@ -778,4 +778,3 @@ func TestDecodeHandShakeRequest(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, encodedHandshakeReq, encoded)
 }
-

@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	log "github.com/sirupsen/logrus"
 	"sync"
 )
 
 type Core struct {
-	BlockChain BlockChain
+	BlockChain *BlockChain
 
 	storage Store
 	logger  *log.Logger
@@ -18,7 +19,7 @@ type Core struct {
 	bcLock sync.RWMutex
 }
 
-func NewCore(bc BlockChain, DB Store, logger *log.Logger) (*Core, error) {
+func NewCore(bc *BlockChain, DB Store, logger *log.Logger) (*Core, error) {
 	core := &Core{
 		BlockChain: bc,
 		storage:    DB,
@@ -113,7 +114,7 @@ func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
 	return nil
 }
 
-func (c *Core) HasBlock(h *Hash) (bool, error) {
+func (c *Core) HasBlock(h *crypto.Hash) (bool, error) {
 	hasBlock, err := c.storage.HasBlock(h)
 	if err != nil {
 		return false, nil
@@ -132,7 +133,7 @@ func (c *Core) TopIndex() (uint32, error) {
 	return height, err
 }
 
-func (c *Core) BlockHeight(h *Hash) (uint32, error) {
+func (c *Core) BlockHeight(h *crypto.Hash) (uint32, error) {
 	i, err := c.storage.GetBlockIndexByHash(h)
 
 	if err != nil {
@@ -153,7 +154,7 @@ func (c *Core) BlockByHeight(h uint32) (*Block, error) {
 	return b, nil
 }
 
-func (c *Core) GenesisBlockHash() (h *Hash, err error) {
+func (c *Core) GenesisBlockHash() (h *crypto.Hash, err error) {
 	if b, err := c.storage.GetBlockByHeight(0); err == nil {
 		return b.Hash(), nil
 	}
@@ -177,8 +178,8 @@ func (c *Core) TopBlock() (*Block, uint32, error) {
 
 // BuildSparseChain
 // IDs pow(2,n) offset, like 2, 4, 8, 16, 32, 64 and so on, and the last one is always genesis block
-func (c *Core) BuildSparseChain() ([]Hash, error) {
-	var list []Hash
+func (c *Core) BuildSparseChain() ([]crypto.Hash, error) {
+	var list []crypto.Hash
 
 	topBlock, height, err := c.TopBlock()
 	if err != nil {
@@ -211,7 +212,7 @@ func (c *Core) BuildSparseChain() ([]Hash, error) {
 }
 
 func (c *Core) initDB() error {
-	if err := c.storage.Init(&c.BlockChain); err != nil {
+	if err := c.storage.Init(c.BlockChain); err != nil {
 		return err
 	}
 
@@ -245,7 +246,7 @@ func (c *Core) deserializeTransactions(rawTransactions [][]byte) ([]Transaction,
 }
 
 // ------------------ Experiments ------------------------------
-func (c *Core) findSegmentContainingBlock(h *Hash) int {
+func (c *Core) findSegmentContainingBlock(h *crypto.Hash) int {
 	blockSegment := c.findMainChainSegmentContainingBlock(h)
 
 	if blockSegment != 0 {
@@ -255,10 +256,10 @@ func (c *Core) findSegmentContainingBlock(h *Hash) int {
 	return c.findMainChainSegmentContainingBlock(h)
 }
 
-func (c *Core) findMainChainSegmentContainingBlock(h *Hash) int {
+func (c *Core) findMainChainSegmentContainingBlock(h *crypto.Hash) int {
 	return 0
 }
 
-func (c *Core) findAlternativeSegmentContainingBlock(h *Hash) int {
+func (c *Core) findAlternativeSegmentContainingBlock(h *crypto.Hash) int {
 	return 0
 }

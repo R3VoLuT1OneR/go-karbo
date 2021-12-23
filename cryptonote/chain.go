@@ -26,7 +26,7 @@ type BlockChain struct {
 	// genesisBlock used for caching genesis block
 	genesisBlock *Block
 
-	blocksIndex map[Hash]*Block
+	blocksIndex map[crypto.Hash]*Block
 
 	// logger for block chain events
 	logger *log.Logger
@@ -86,30 +86,30 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	var transactions []Transaction
-	var transactionsSize uint64
-	if transactions, transactionsSize, err := bc.deserializeTransactions(blogger, rawTransactions); err != nil {
-		return err
-	}
-
-	prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
-
-	blockSize := coinbaseTransactionSize + transactionsSize
-	if blockSize > bc.Network.MaxBlockSize(uint64(prevBlockHeight)) {
-		err := ErrBlockValidationCumulativeSizeTooBig
-		blogger.Error(err)
-		return err
-	}
-
-	if err := bc.validateBlock(blogger, b); err != nil {
-		return err
-	}
-
-	if b.MajorVersion >= config.BlockMajorVersion5 {
-		// TODO: Implement block.Signature and verify signature
-		sigHash := crypto.Keccak(b.HashingBytes())
-		ephPubKey := b.CoinbaseTransaction.Outputs[0].Target.(OutputKey)
-	}
+	//var transactions []Transaction
+	//var transactionsSize uint64
+	//if transactions, transactionsSize, err := bc.deserializeTransactions(blogger, rawTransactions); err != nil {
+	//	return err
+	//}
+	//
+	//prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
+	//
+	//blockSize := coinbaseTransactionSize + transactionsSize
+	//if blockSize > bc.Network.MaxBlockSize(uint64(prevBlockHeight)) {
+	//	err := ErrBlockValidationCumulativeSizeTooBig
+	//	blogger.Error(err)
+	//	return err
+	//}
+	//
+	//if err := bc.validateBlock(blogger, b); err != nil {
+	//	return err
+	//}
+	//
+	//if b.MajorVersion >= config.BlockMajorVersion5 {
+	//	// TODO: Implement block.Signature and verify signature
+	//	sigHash := HashFromBytes(b.HashingBytes())
+	//	ephPubKey := b.CoinbaseTransaction.Outputs[0].Target.(OutputKey)
+	//}
 
 	return nil
 }
@@ -263,7 +263,7 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) error {
 }
 
 // blockHeight returns index on the current block
-func (bc *BlockChain) blockHeight(h *Hash) uint32 {
+func (bc *BlockChain) blockHeight(h *crypto.Hash) uint32 {
 	return 0
 }
 
@@ -271,7 +271,7 @@ func (bc *BlockChain) blockHeight(h *Hash) uint32 {
 // haveBlock return whether the block hash contains in the blockchain
 //
 // This function is NOT safe for concurrent access
-func (bc *BlockChain) haveBlock(h *Hash) bool {
+func (bc *BlockChain) haveBlock(h *crypto.Hash) bool {
 	_, ok := bc.blocksIndex[*h]
 	return ok
 }
@@ -279,7 +279,7 @@ func (bc *BlockChain) haveBlock(h *Hash) bool {
 // HaveBlock return whether the block hash contains in the blockchain
 //
 // This function is safe for concurrent access.
-func (bc *BlockChain) HaveBlock(h *Hash) bool {
+func (bc *BlockChain) HaveBlock(h *crypto.Hash) bool {
 	bc.RLock()
 	hasBlock := bc.haveBlock(h)
 	bc.RUnlock()
@@ -347,7 +347,7 @@ func (bc *BlockChain) lastBlockTimestamps(count int, b *Block) []uint64 {
 	for count > 0 {
 		timestamps = append(timestamps, tempBlock.Timestamp)
 
-		if tempBlock.PreviousBlockHash == (Hash{}) {
+		if tempBlock.PreviousBlockHash == (crypto.Hash{}) {
 			break
 		}
 
@@ -359,6 +359,6 @@ func (bc *BlockChain) lastBlockTimestamps(count int, b *Block) []uint64 {
 }
 
 // loadBlock fetch the block from block store
-func (bc *BlockChain) loadBlock(h *Hash) *Block {
+func (bc *BlockChain) loadBlock(h *crypto.Hash) *Block {
 	return nil
 }

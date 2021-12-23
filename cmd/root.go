@@ -37,7 +37,7 @@ var rootCmd = &cobra.Command{
 		coreLogger.Out = os.Stdout
 		coreLogger.Level = log.TraceLevel
 
-		bc := cryptonote.NewBlockChain(mainnet)
+		bc := cryptonote.NewBlockChain(mainnet, coreLogger)
 		core, err := cryptonote.NewCore(bc, db, coreLogger)
 		if err != nil {
 			panic(err)

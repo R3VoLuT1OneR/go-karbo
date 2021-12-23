@@ -1,6 +1,7 @@
 package cryptonote
 
 import (
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,19 +23,19 @@ var testingData = []*struct {
 
 func TestGenerateViewFromSpend(t *testing.T) {
 	for _, td := range testingData {
-		spendKey, _ := KeyFromHex(td.spendKey)
-		viewKey, _ := KeyFromHex(td.viewKey)
+		spendKey, _ := crypto.KeyFromHex(td.spendKey)
+		viewKey, _ := crypto.KeyFromHex(td.viewKey)
 
-		assert.Equal(t, viewKey, ViewFromSpend(spendKey))
+		assert.Equal(t, viewKey, crypto.ViewFromSpend(spendKey))
 	}
 }
 
 func TestGetPublicKey(t *testing.T) {
 	for _, td := range testingData {
-		spendKey, _ := KeyFromHex(td.spendKey)
-		viewKey, _ := KeyFromHex(td.viewKey)
-		publicSpendKey, _ := PublicFromPrivate(spendKey)
-		publicViewKey, _ := PublicFromPrivate(viewKey)
+		spendKey, _ := crypto.KeyFromHex(td.spendKey)
+		viewKey, _ := crypto.KeyFromHex(td.viewKey)
+		publicSpendKey, _ := crypto.PublicFromPrivate(spendKey)
+		publicViewKey, _ := crypto.PublicFromPrivate(viewKey)
 
 		assert.Equal(t, td.publicSpendKey, publicSpendKey.Hex())
 		assert.Equal(t, td.publicViewKey, publicViewKey.Hex())

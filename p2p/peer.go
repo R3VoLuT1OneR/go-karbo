@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	log "github.com/sirupsen/logrus"
 	"io"
@@ -41,8 +42,8 @@ type Peer struct {
 	remoteHeight       uint32
 	lastResponseHeight uint32
 
-	neededBlocks    cryptonote.HashList
-	requestedBlocks cryptonote.HashList
+	neededBlocks    crypto.HashList
+	requestedBlocks crypto.HashList
 }
 
 func NewPeerFromTCPAddress(ctx context.Context, n *Node, addr string) (*Peer, error) {
@@ -496,7 +497,7 @@ func (p *Peer) processSyncData(data SyncData, initial bool) error {
 func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
 	if len(p.neededBlocks) > 0 {
 		neededBlocks := p.neededBlocks
-		requestBlocks := cryptonote.HashList{}
+		requestBlocks := crypto.HashList{}
 
 		for len(neededBlocks) > 0 && len(requestBlocks) < MaxBlockSynchronization {
 			nb := neededBlocks[0]

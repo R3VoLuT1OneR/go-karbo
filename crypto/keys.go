@@ -1,12 +1,8 @@
-package cryptonote
+package crypto
 
 import (
-	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"github.com/r3volut1oner/go-karbo/crypto"
-	"io"
-
 	ed "github.com/r3volut1oner/go-karbo/crypto/edwards25519"
 )
 
@@ -21,7 +17,10 @@ type Key interface {
 	Hex() string
 
 	// Bytes array
-	Bytes() *[32]byte
+	Bytes() [32]byte
+
+	// BytesSlice return bytes slice
+	BytesSlice() []byte
 
 	// Check if key is it is valid key
 	Check() bool
@@ -37,8 +36,12 @@ func (k *key) Hex() string {
 }
 
 // Bytes representation of the key
-func (k *key) Bytes() *[32]byte {
-	return &k.b
+func (k *key) Bytes() [32]byte {
+	return k.b
+}
+
+func (k *key) BytesSlice() []byte {
+	return k.b[:]
 }
 
 // Check that the point is not curve
@@ -52,63 +55,49 @@ func KeyFromHex(s string) (Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	return KeyFromBytes(&decoded)
+	return KeyFromBytes(decoded)
 }
 
 // KeyFromBytes key from bytes
-func KeyFromBytes(b *[]byte) (Key, error) {
-	if len(*b) != 32 {
+func KeyFromBytes(b []byte) (Key, error) {
+	if len(b) != 32 {
 		return nil, ErrKeyWrongLength
 	}
 
 	var keyBytes [32]byte
-	copy(keyBytes[:], *b)
-	return KeyFromArray(&keyBytes), nil
+	copy(keyBytes[:], b)
+	return KeyFromArray(keyBytes), nil
 }
 
 // KeyFromArray generate from array
-func KeyFromArray(b *[32]byte) Key {
-	return &key{*b}
+func KeyFromArray(b [32]byte) Key {
+	return &key{b}
 }
 
 // PublicFromPrivate key from private
-func PublicFromPrivate(k Key) (Key, error) {
-	if !ed.ScCheck(k.Bytes()) {
+func PublicFromPrivate(privateKey Key) (Key, error) {
+	if !ed.ScCheck(privateKey.Bytes()) {
 		return nil, ErrKeyNotOnCurve
 	}
 
 	var point ed.ExtendedGroupElement
-	ed.GeScalarMultBase(&point, k.Bytes())
+	ed.GeScalarMultBase(&point, privateKey.Bytes())
 
-	var keyBytes [32]byte
-	point.ToBytes(&keyBytes)
-	return KeyFromArray(&keyBytes), nil
+	return KeyFromArray(point.ToBytes()), nil
 }
 
 // ViewFromSpend returns deterministic private key
 func ViewFromSpend(k Key) Key {
-	keyBytes := k.Bytes()[:]
-	keyHash := crypto.Keccak(keyBytes)
-	key := KeyFromArray(reduceBytesToPoint(&keyHash))
+	var reduceBytes [64]byte
+	copy(reduceBytes[:], Keccak(k.BytesSlice()))
+	key := KeyFromArray(ed.ScReduce(reduceBytes))
 
 	return key
 }
 
 // GenerateKey cryptonote keys
 func GenerateKey() (Key, error) {
-	randomBytes := make([]byte, 64)
-	if _, err := io.ReadFull(rand.Reader, randomBytes); err != nil {
-		return nil, err
-	}
+	randomScalar := RandomScalar()
 
-	return KeyFromArray(reduceBytesToPoint(&randomBytes)), nil
-}
-
-func reduceBytesToPoint(b *[]byte) *[32]byte {
-	var in [64]byte
-	var out [32]byte
-
-	copy(in[:], *b)
-	ed.ScReduce(&out, &in)
-	return &out
+	return KeyFromArray(randomScalar), nil
 }
