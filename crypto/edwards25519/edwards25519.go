@@ -2137,7 +2137,7 @@ func ScMulAdd(s, a, b, c *[32]byte) {
 	s[31] = byte(s11 >> 17)
 }
 
-func ScReduce32(s []byte) [32]byte {
+func ScReduce32(s [32]byte) [32]byte {
 	var out [32]byte
 
 	s0 := 2097151 & load3(s[:])
@@ -2151,7 +2151,7 @@ func ScReduce32(s []byte) [32]byte {
 	s8 := 2097151 & load3(s[21:])
 	s9 := 2097151 & (load4(s[23:]) >> 5)
 	s10 := 2097151 & (load3(s[26:]) >> 2)
-	s11 := 2097151 & (load4(s[28:]) >> 7)
+	s11 := load4(s[28:]) >> 7
 	s12 := int64(0)
 
 	var carry [12]int64
@@ -2245,7 +2245,6 @@ func ScReduce32(s []byte) [32]byte {
 	s3 -= s12 * 997805
 	s4 += s12 * 136657
 	s5 -= s12 * 683901
-	s12 = 0
 
 	carry[0] = s0 >> 21
 	s1 += carry[0]

@@ -12,7 +12,9 @@ type EllipticCurveScalar [32]byte
 
 func HashToScalar(b []byte) EllipticCurveScalar {
 	hashed := Keccak(b)
-	return ed.ScReduce32(hashed[:32])
+	var ba [32]byte
+	copy(ba[:], hashed[:])
+	return ed.ScReduce32(ba)
 }
 
 func RandomScalar() EllipticCurveScalar {
