@@ -1057,7 +1057,7 @@ func GeScalarMultBase(h *ExtendedGroupElement, a [32]byte) {
 }
 
 func ScSub(a, b [32]byte) [32]byte {
-	var s [32]byte
+	var out [32]byte
 
 	a0 := 2097151 & load3(a[:])
 	a1 := 2097151 & (load4(a[2:]) >> 5)
@@ -1225,40 +1225,40 @@ func ScSub(a, b [32]byte) [32]byte {
 	s11 += carry[10]
 	s10 -= carry[10] << 21
 
-	s[0] = byte(s0 >> 0)
-	s[1] = byte(s0 >> 8)
-	s[2] = byte((s0 >> 16) | (s1 << 5))
-	s[3] = byte(s1 >> 3)
-	s[4] = byte(s1 >> 11)
-	s[5] = byte((s1 >> 19) | (s2 << 2))
-	s[6] = byte(s2 >> 6)
-	s[7] = byte((s2 >> 14) | (s3 << 7))
-	s[8] = byte(s3 >> 1)
-	s[9] = byte(s3 >> 9)
-	s[10] = byte((s3 >> 17) | (s4 << 4))
-	s[11] = byte(s4 >> 4)
-	s[12] = byte(s4 >> 12)
-	s[13] = byte((s4 >> 20) | (s5 << 1))
-	s[14] = byte(s5 >> 7)
-	s[15] = byte((s5 >> 15) | (s6 << 6))
-	s[16] = byte(s6 >> 2)
-	s[17] = byte(s6 >> 10)
-	s[18] = byte((s6 >> 18) | (s7 << 3))
-	s[19] = byte(s7 >> 5)
-	s[20] = byte(s7 >> 13)
-	s[21] = byte(s8 >> 0)
-	s[22] = byte(s8 >> 8)
-	s[23] = byte((s8 >> 16) | (s9 << 5))
-	s[24] = byte(s9 >> 3)
-	s[25] = byte(s9 >> 11)
-	s[26] = byte((s9 >> 19) | (s10 << 2))
-	s[27] = byte(s10 >> 6)
-	s[28] = byte((s10 >> 14) | (s11 << 7))
-	s[29] = byte(s11 >> 1)
-	s[30] = byte(s11 >> 9)
-	s[31] = byte(s11 >> 17)
+	out[0] = byte(s0 >> 0)
+	out[1] = byte(s0 >> 8)
+	out[2] = byte((s0 >> 16) | (s1 << 5))
+	out[3] = byte(s1 >> 3)
+	out[4] = byte(s1 >> 11)
+	out[5] = byte((s1 >> 19) | (s2 << 2))
+	out[6] = byte(s2 >> 6)
+	out[7] = byte((s2 >> 14) | (s3 << 7))
+	out[8] = byte(s3 >> 1)
+	out[9] = byte(s3 >> 9)
+	out[10] = byte((s3 >> 17) | (s4 << 4))
+	out[11] = byte(s4 >> 4)
+	out[12] = byte(s4 >> 12)
+	out[13] = byte((s4 >> 20) | (s5 << 1))
+	out[14] = byte(s5 >> 7)
+	out[15] = byte((s5 >> 15) | (s6 << 6))
+	out[16] = byte(s6 >> 2)
+	out[17] = byte(s6 >> 10)
+	out[18] = byte((s6 >> 18) | (s7 << 3))
+	out[19] = byte(s7 >> 5)
+	out[20] = byte(s7 >> 13)
+	out[21] = byte(s8 >> 0)
+	out[22] = byte(s8 >> 8)
+	out[23] = byte((s8 >> 16) | (s9 << 5))
+	out[24] = byte(s9 >> 3)
+	out[25] = byte(s9 >> 11)
+	out[26] = byte((s9 >> 19) | (s10 << 2))
+	out[27] = byte(s10 >> 6)
+	out[28] = byte((s10 >> 14) | (s11 << 7))
+	out[29] = byte(s11 >> 1)
+	out[30] = byte(s11 >> 9)
+	out[31] = byte(s11 >> 17)
 
-	return s
+	return out
 }
 
 // The scalars are GF(2^252 + 27742317777372353535851937790883648493).
@@ -2667,7 +2667,6 @@ func ScMinimal(scalar *[32]byte) bool {
 }
 
 // ScCheck is point on the curve
-// Deprecated: Must be checked and rewritten
 func ScCheck(s [32]byte) bool {
 	s0 := load4(s[0:])
 	s1 := load4(s[4:])
@@ -2681,8 +2680,8 @@ func ScCheck(s [32]byte) bool {
 }
 
 func ScIsNonZero(s [32]byte) bool {
-	return (((int)(s[0]|s[1]|s[2]|s[3]|s[4]|s[5]|s[6]|s[7]|s[8]|
+	return 0 != ((((int)(s[0]|s[1]|s[2]|s[3]|s[4]|s[5]|s[6]|s[7]|s[8]|
 		s[9]|s[10]|s[11]|s[12]|s[13]|s[14]|s[15]|s[16]|s[17]|
 		s[18]|s[19]|s[20]|s[21]|s[22]|s[23]|s[24]|s[25]|s[26]|
-		s[27]|s[28]|s[29]|s[30]|s[31])-1)>>8)+1 != 0
+		s[27]|s[28]|s[29]|s[30]|s[31]) - 1) >> 8) + 1)
 }

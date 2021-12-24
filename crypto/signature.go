@@ -3,7 +3,6 @@ package crypto
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	ed "github.com/r3volut1oner/go-karbo/crypto/edwards25519"
 )
@@ -27,28 +26,26 @@ var infinityPoint = EllipticCurvePoint{
 
 func (s *sComm) bytes() ([]byte, error) {
 	var bufBytes bytes.Buffer
-	if err := binary.Write(&bufBytes, binary.LittleEndian, *s); err != nil {
+	if err := binary.Write(&bufBytes, binary.BigEndian, *s); err != nil {
 		return nil, err
 	}
 
 	return bufBytes.Bytes(), nil
 }
 
-// GenerateSignature generates new signature
-func GenerateSignature(hash Hash, publicKey Key, secretKey Key) (*Signature, error) {
+// SignHash generates new signature
+//
+// Sig =
+func SignHash(hash Hash, secretKey Key) (*Signature, error) {
 	sig := Signature{}
 
 	var tmp3 ed.ExtendedGroupElement
 	var buf sComm
 
 	// Check that provided public key belongs to secret key
-	tPubKey, err := PublicFromPrivate(secretKey)
+	publicKey, err := PublicFromPrivate(secretKey)
 	if err != nil {
 		return nil, fmt.Errorf("can't get public from private: %w", err)
-	}
-
-	if tPubKey.Bytes() != publicKey.Bytes() {
-		return nil, errors.New("mismatch in provided public and secret keys")
 	}
 
 	buf.hash = hash
@@ -83,19 +80,18 @@ tryAgain:
 }
 
 func (sig *Signature) Check(hash Hash, publicKey Key) bool {
-	var tmp2 ed.ProjectiveGroupElement
-	var tmp3 ed.ExtendedGroupElement
-	var buf sComm
-
 	if !publicKey.Check() {
 		return false
 	}
 
 	publicKeyBytes := publicKey.Bytes()
 
-	buf.hash = hash
-	buf.key = publicKeyBytes
+	buf := sComm{
+		hash: hash,
+		key:  publicKeyBytes,
+	}
 
+	var tmp3 ed.ExtendedGroupElement
 	if !tmp3.FromBytes(&publicKeyBytes) {
 		return false
 	}
@@ -104,6 +100,7 @@ func (sig *Signature) Check(hash Hash, publicKey Key) bool {
 		return false
 	}
 
+	var tmp2 ed.ProjectiveGroupElement
 	ed.GeDoubleScalarMultVartime(&tmp2, sig.C.bytesPointer(), &tmp3, sig.R.bytesPointer())
 	buf.comm = tmp2.ToBytes()
 
@@ -111,14 +108,9 @@ func (sig *Signature) Check(hash Hash, publicKey Key) bool {
 		return false
 	}
 
-	bufBytes, err := buf.bytes()
-	if err != nil {
-		return false
-	}
-
-	c := HashToScalar(bufBytes)
-	c = ed.ScSub(c, sig.C)
-
+	bufBytes, _ := buf.bytes()
+	hashBuf := HashToScalar(bufBytes)
+	c := ed.ScSub(sig.C, hashBuf)
 	return !ed.ScIsNonZero(c)
 }
 
