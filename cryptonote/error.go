@@ -20,6 +20,7 @@ var (
 	ErrBlockValidationTimestampTooFarInPast       = errors.New("timestamp too far in past")
 	ErrBlockValidationDifficultyOverhead          = errors.New("difficulty overhead")
 	ErrBlockValidationBlockRewardMismatch         = errors.New("block reward mismatch")
+	ErrBlockValidationBlockSignatureMismatch      = errors.New("block signature mismatch")
 	ErrBlockValidationCheckpointBlockHashMismatch = errors.New("checkout block hash mismatch")
 	ErrBlockValidationProofOfWorkTooWeak          = errors.New("proof of work too weak")
 	ErrBlockValidationTransactionAbsentInPool     = errors.New("transaction absent in pool")

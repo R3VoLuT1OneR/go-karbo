@@ -86,30 +86,34 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	//var transactions []Transaction
-	//var transactionsSize uint64
-	//if transactions, transactionsSize, err := bc.deserializeTransactions(blogger, rawTransactions); err != nil {
-	//	return err
-	//}
-	//
-	//prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
-	//
-	//blockSize := coinbaseTransactionSize + transactionsSize
-	//if blockSize > bc.Network.MaxBlockSize(uint64(prevBlockHeight)) {
-	//	err := ErrBlockValidationCumulativeSizeTooBig
-	//	blogger.Error(err)
-	//	return err
-	//}
-	//
-	//if err := bc.validateBlock(blogger, b); err != nil {
-	//	return err
-	//}
-	//
-	//if b.MajorVersion >= config.BlockMajorVersion5 {
-	//	// TODO: Implement block.Signature and verify signature
-	//	sigHash := HashFromBytes(b.HashingBytes())
-	//	ephPubKey := b.CoinbaseTransaction.Outputs[0].Target.(OutputKey)
-	//}
+	var transactions []Transaction
+	var transactionsSize uint64
+	if transactions, transactionsSize, err := bc.deserializeTransactions(blogger, rawTransactions); err != nil {
+		return err
+	}
+
+	prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
+
+	blockSize := coinbaseTransactionSize + transactionsSize
+	if blockSize > bc.Network.MaxBlockSize(uint64(prevBlockHeight)) {
+		err := ErrBlockValidationCumulativeSizeTooBig
+		blogger.Error(err)
+		return err
+	}
+
+	if err := bc.validateBlock(blogger, b); err != nil {
+		return err
+	}
+
+	if b.MajorVersion >= config.BlockMajorVersion5 {
+		sigHash := crypto.HashFromBytes(b.HashingBytes())
+		ephPubKey := b.CoinbaseTransaction.Outputs[0].Target.(OutputKey)
+		if !b.Signature.Check(sigHash, ephPubKey) {
+			err := ErrBlockValidationBlockSignatureMismatch
+			blogger.Error(err)
+			return err
+		}
+	}
 
 	return nil
 }
