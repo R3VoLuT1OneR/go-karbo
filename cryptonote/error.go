@@ -9,6 +9,11 @@ var (
 	ErrAddBlockTransactionCoinbaseMaxSize = errors.New("coinbase transaction size bigger than allowed")
 	ErrAddBlockTransactionDeserialization = errors.New("transaction deserialization failed")
 	ErrAddBlockRejectedAsOrphaned         = errors.New("rejected as orphaned")
+
+	ErrAddBlockFailedGetDifficulty = errors.New("failed to get difficulty for next block")
+
+	// ErrAddBlockUnexpectedError any unpredictable error
+	ErrAddBlockUnexpectedError = errors.New("unexpected error")
 )
 
 var (

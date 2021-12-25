@@ -80,15 +80,14 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	if len(b.TransactionsHashes) != len(rawTransactions) {
-		err := ErrAddBlockTransactionCountNotMatch
-		blogger.Error(err)
+	transactions, transactionsSize, err := bc.deserializeTransactions(blogger, rawTransactions)
+	if err != nil {
 		return err
 	}
 
-	var transactions []Transaction
-	var transactionsSize uint64
-	if transactions, transactionsSize, err := bc.deserializeTransactions(blogger, rawTransactions); err != nil {
+	if len(b.TransactionsHashes) != len(transactions) {
+		err := ErrAddBlockTransactionCountNotMatch
+		blogger.Error(err)
 		return err
 	}
 
@@ -115,14 +114,28 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		}
 	}
 
+	prevBlock := bc.getBlockByHash(&b.PreviousBlockHash)
+	currentDifficulty, err := bc.difficultyForNextBlock(prevBlock)
+
+	if err != nil {
+		err := ErrAddBlockFailedGetDifficulty
+		blogger.Error(err)
+		return err
+	}
+
+	if currentDifficulty == 0 {
+		err := ErrBlockValidationDifficultyOverhead
+		blogger.Error(err)
+		return err
+	}
+
 	return nil
 }
 
-// validateBlock validates block
-//
-// Returns miner reward and an error if there is an error in block validation
+// validateBlock validates block.
+// Returns and error if block not valid.
 func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) error {
-	if bc.Network.GetBlockMajorVersion(b.Height()) != b.MajorVersion {
+	if bc.Network.GetBlockMajorVersionForHeight(b.Height()) != b.MajorVersion {
 		err := ErrBlockValidationWrongVersion
 		blogger.Error(err)
 		return err
@@ -149,7 +162,7 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) error {
 	}
 
 	timestampCheckWindow := bc.Network.BlockTimestampCheckWindow(b.MajorVersion)
-	lastTimestamps := bc.lastBlockTimestamps(timestampCheckWindow, b)
+	lastTimestamps := bc.lastBlocksTimestamps(timestampCheckWindow, b)
 	if len(lastTimestamps) >= timestampCheckWindow {
 		if b.Timestamp < utils.MedianSlice(lastTimestamps) {
 			err := ErrBlockValidationTimestampTooFarInPast
@@ -266,9 +279,16 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) error {
 	return nil
 }
 
+// TODO: Implement the method
 // blockHeight returns index on the current block
 func (bc *BlockChain) blockHeight(h *crypto.Hash) uint32 {
 	return 0
+}
+
+// TODO: Refactor find better implementation way may use only blockHeight
+// topIndex return the index of the top best chain block
+func (bc *BlockChain) topIndex() uint32 {
+	return bc.tip.Height() - 1
 }
 
 // TODO: Properly implement this method
@@ -314,7 +334,8 @@ func (bc *BlockChain) GenesisBlock() (*Block, error) {
 	return bc.genesisBlock, nil
 }
 
-// deserializeTransactions deserializes transactions to object, transactions are passing basic data validation
+// deserializeTransactions deserializes transactions to object, transactions are passing basic data validation.
+// Function write to the log on error, so no need to log the error on the caller side.
 func (bc *BlockChain) deserializeTransactions(blogger *log.Entry, rt [][]byte) ([]Transaction, uint64, error) {
 	transactions := make([]Transaction, len(rt))
 	transactionsSize := uint64(0)
@@ -343,8 +364,8 @@ func (bc *BlockChain) deserializeTransactions(blogger *log.Entry, rt [][]byte) (
 	return transactions, transactionsSize, nil
 }
 
-// lastBlockTimestamps fetches the timestamps of the
-func (bc *BlockChain) lastBlockTimestamps(count int, b *Block) []uint64 {
+// lastBlocksTimestamps fetches the timestamps of the
+func (bc *BlockChain) lastBlocksTimestamps(count int, b *Block) []uint64 {
 	var timestamps []uint64
 	var tempBlock = b
 
@@ -355,14 +376,15 @@ func (bc *BlockChain) lastBlockTimestamps(count int, b *Block) []uint64 {
 			break
 		}
 
-		tempBlock = bc.loadBlock(&tempBlock.PreviousBlockHash)
+		tempBlock = bc.getBlockByHash(&tempBlock.PreviousBlockHash)
 		count--
 	}
 
 	return timestamps
 }
 
-// loadBlock fetch the block from block store
-func (bc *BlockChain) loadBlock(h *crypto.Hash) *Block {
+// TODO: Implement
+// getBlockByHash fetch the block from block store
+func (bc *BlockChain) getBlockByHash(h *crypto.Hash) *Block {
 	return nil
 }

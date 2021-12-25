@@ -227,7 +227,7 @@ var decodeAddrNegative = []*struct {
 	{"IuT7GAdgbA819VwdWVDP", "invalid character 'I' found"},
 	{"OuT7GAdgbA819VwdWVDP", "invalid character 'O' found"},
 	{"luT7GAdgbA819VwdWVDP", "invalid character 'l' found"},
-	{string(0x00) + "uT7GAdgbA819VwdWVDP", "invalid character '\x00' found"},
+	{string(rune(0x00)) + "uT7GAdgbA819VwdWVDP", "invalid character '\x00' found"},
 	{"PuT7GAdgbA819VwdWVD", "invalid block size"},
 	{"11efCaY6UjG7JrxuC", "invalid checksum"},
 	// {"jerj2e4mESo", "handles_non_correct_tag"}, // "jerj2e4mESo" == "\xFF\x00\xFF\xFF\x5A\xD9\xF1\x1C"

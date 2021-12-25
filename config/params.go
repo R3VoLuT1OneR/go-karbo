@@ -41,4 +41,18 @@ const (
 	minedMoneyUnlockWindow = 10
 
 	MaxExtraSize = 1024
+
+	difficultyTarget             = 240
+	expectedNumberOfBlocksPerDay = (25 * 60 * 60) / difficultyTarget
+
+	difficultyWindow  = expectedNumberOfBlocksPerDay
+	difficultyWindow2 = 17
+	difficultyWindow3 = 60
+	difficultyWindow4 = 120
+
+	difficultyCut = 60
+	difficultyLag = 15
+
+	resetWorkFactorV5 = 1000
+	minimalDifficulty = 100000
 )
