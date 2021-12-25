@@ -203,6 +203,22 @@ func (n *Network) NextDifficulty(h uint32, nextBlockMajorVersion byte, timestamp
 	return n.nextDifficultyV1(timestamps, cumulativeDifficulties)
 }
 
+func (n *Network) MinimalFee(height uint32) uint64 {
+	if height <= UpgradeHeightV3s1 {
+		return minimumFeeV1
+	}
+
+	if height > UpgradeHeightV3s1 && height <= UpgradeHeightV4 {
+		return minimumFeeV2
+	}
+
+	if height > UpgradeHeightV4 && height < UpgradeHeightV4s3 {
+		return minimumFeeV1
+	}
+
+	return minimumFeeV3
+}
+
 func (n *Network) nextDifficultyV5(height uint32, majorVersion byte, timestamps []uint64, cumulativeDifficulties []uint64) (uint64, error) {
 	// LWMA-1 difficulty algorithm
 	// Copyright (c) 2017-2018 Zawy, MIT License

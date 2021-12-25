@@ -55,4 +55,10 @@ const (
 
 	resetWorkFactorV5 = 1000
 	minimalDifficulty = 100000
+
+	minimumFeeV1 = uint64(100000000)
+	minimumFeeV2 = uint64(100000000000)
+	minimumFeeV3 = uint64(10000000000)
+	minimumFee   = minimumFeeV1
+	maximumFee   = uint64(100000000000)
 )

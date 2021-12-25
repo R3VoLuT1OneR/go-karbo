@@ -17,8 +17,8 @@ type BlockChain struct {
 	// Network is current network configurations, must stay immutable
 	Network *config.Network
 
-	// tip the higher block in the blockchain
-	tip *Block
+	// bestTip the higher block in the blockchain
+	bestTip *Block
 
 	// tips higher blockchain tips
 	tips []*Block
@@ -91,10 +91,9 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
-
+	prevBlock := bc.getBlockByHash(&b.PreviousBlockHash)
 	blockSize := coinbaseTransactionSize + transactionsSize
-	if blockSize > bc.Network.MaxBlockSize(uint64(prevBlockHeight)) {
+	if blockSize > bc.Network.MaxBlockSize(uint64(prevBlock.Height())) {
 		err := ErrBlockValidationCumulativeSizeTooBig
 		blogger.Error(err)
 		return err
@@ -114,7 +113,6 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		}
 	}
 
-	prevBlock := bc.getBlockByHash(&b.PreviousBlockHash)
 	currentDifficulty, err := bc.difficultyForNextBlock(prevBlock)
 
 	if err != nil {
@@ -127,6 +125,46 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		err := ErrBlockValidationDifficultyOverhead
 		blogger.Error(err)
 		return err
+	}
+
+	// Are we going to add the block to the best blockchain
+	addOnTop := bc.bestTip.Height() == prevBlock.Height()
+
+	txAddedHashes := map[crypto.Hash]bool{}
+	for i, transaction := range transactions {
+		// check if tx hashes in txs blob and header match
+		txHash := transaction.Hash()
+
+		btlogger := blogger.WithFields(log.Fields{
+			"transaction_index": i,
+			"transaction_hash":  txHash.String(),
+			"block_hash":        b.TransactionsHashes[i],
+		})
+
+		if *txHash != b.TransactionsHashes[i] {
+			err := ErrBlockValidationTransactionInconsistency
+			btlogger.Error(err)
+			return err
+		}
+
+		if addOnTop && bc.hasTransaction(txHash) {
+			err := ErrBlockValidationDuplicateTransaction
+			btlogger.Error(err)
+			return err
+		}
+
+		// check that there's no duplicate transaction in the block
+		if _, ok := txAddedHashes[*txHash]; ok {
+			err := ErrBlockValidationDuplicateTransaction
+			btlogger.Error(err)
+			return err
+		}
+
+		txAddedHashes[*txHash] = true
+
+		//fee := uint64(0)
+		//minFee := bc.Network.MinimalFee(b.Height())
+
 	}
 
 	return nil
@@ -288,7 +326,7 @@ func (bc *BlockChain) blockHeight(h *crypto.Hash) uint32 {
 // TODO: Refactor find better implementation way may use only blockHeight
 // topIndex return the index of the top best chain block
 func (bc *BlockChain) topIndex() uint32 {
-	return bc.tip.Height() - 1
+	return bc.bestTip.Height() - 1
 }
 
 // TODO: Properly implement this method
@@ -387,4 +425,10 @@ func (bc *BlockChain) lastBlocksTimestamps(count int, b *Block) []uint64 {
 // getBlockByHash fetch the block from block store
 func (bc *BlockChain) getBlockByHash(h *crypto.Hash) *Block {
 	return nil
+}
+
+// TODO: Implement
+// hasTransaction check if transaction is stored in blockchain already
+func (bc *BlockChain) hasTransaction(txHash *crypto.Hash) bool {
+	return false
 }
