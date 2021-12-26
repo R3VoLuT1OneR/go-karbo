@@ -68,4 +68,19 @@ var (
 	ErrTransactionSizeTooLarge                         = errors.New("transaction is too large (in bytes)")
 	ErrTransactionOutputsInvalidCount                  = errors.New("only 1 output in coinbase transaction allowed")
 	ErrTransactionBaseOutputWrongType                  = errors.New("coinbase transaction can have only output key output type")
+	ErrTransactionUnknownError                         = errors.New("unknown error")
+	ErrTransactionMultiSignaturesNotImplemented        = errors.New("multisignatures not implemented")
+)
+
+var (
+	ErrTransactionFusionMaxSize                    = errors.New("fusion transaction verification failed: size exceeded max allowed size")
+	ErrTransactionFusionInputCountsLessThanMinimum = errors.New("fusion transaction verification failed: inputs count is less than minimum")
+	ErrTransactionFusionRatioInvalid               = errors.New("fusion transaction verification failed: inputs to outputs count ratio is less than minimum")
+	ErrTransactionFusionAmountLessThenThreshold    = errors.New("fusion transaction verification failed: amount is less than dust threshold")
+	ErrTransactionFusionDecomposedNotMatch         = errors.New("fusion transaction verification failed: decomposed output amounts do not match expected")
+)
+
+var (
+	ErrExtractOutputKeyInvalidGlobalIndex = errors.New("invalid global index")
+	ErrExtractOutputKeyLocked             = errors.New("output locked")
 )

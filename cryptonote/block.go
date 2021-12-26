@@ -9,39 +9,70 @@ import (
 	"unsafe"
 )
 
-type ParentBlock struct {
-	MajorVersion byte
-	MinorVersion byte
-	Timestamp    uint64
-	Nonce        uint32
-	Prev         crypto.Hash
-
-	TransactionsCount     uint16
-	BaseTransactionBranch crypto.HashList
-	BaseTransaction       BaseTransaction
-	BlockchainBranch      []crypto.Hash
-}
-
-type BlockHeader struct {
-	MajorVersion      byte
-	MinorVersion      byte
-	Nonce             uint32
-	Timestamp         uint64
-	PreviousBlockHash crypto.Hash
-}
-
+// Block consists of three parts:
+// - block header
+// - base transaction body
+// - list of transaction identifiers (hashes)
+//
+// The list starts with the number of transaction identifiers that it
+// contains.
 type Block struct {
-	Parent              ParentBlock
-	CoinbaseTransaction Transaction
-	TransactionsHashes  []crypto.Hash
-	Signature           crypto.Signature
+	// Each block starts with a block header.
+	BlockHeader
 
+	// Each valid block contains a single base transaction. The base
+	// transaction's validity depends on the block height due to the
+	// following reasons:
+	//   - the emission rule is generally defined as a function of time;
+	//   - without the block height field, two base transactions could
+	//     be indistinguishable as they can have the same hash (see [BH] for
+	//     a description of a similar problem in Bitcoin).
+	BaseTransaction Transaction
+
+	// A transaction identifier is a transaction body hashed with the Keccak
+	// hash function. The list starts with the number of identifiers and is
+	// followed by the identifiers themselves if it is not empty.
+	TransactionsHashes []crypto.Hash
+
+	// ParentBlock was introduced in the 2 and 3, block versions and removed and newest.
+	// Pointer is used to save space in blocks with version that is not using it.
+	Parent *ParentBlock
+
+	// Signature introduced in the 5th block version.
+	// It is the proof that blocked was mined by the owner of the rewarded address.
+	// Pointer is used to save space in blocks with version that is not using it.
+	Signature *crypto.Signature
+
+	// Next variables are used only for caching in runtime
 	hash             *crypto.Hash
 	hashTransactions *crypto.Hash
-
-	BlockHeader
 }
 
+// BlockHeader represents the metadata of the block
+//
+// The major version defines the block header parsing rules (i.e. block header format) and is incremented with
+// each block header format update.
+// The minor version defines the interpretation details that are not related to block header parsing.
+type BlockHeader struct {
+	// MajorVersion of the block
+	// Blockchain involves so the block may change the look
+	MajorVersion byte
+
+	// MinorVersion of the block
+	MinorVersion byte
+
+	// Timestamp of when the block was mined
+	Timestamp uint64
+
+	// PreviousBlockHash have a unique identifier of the previous block
+	// Used for building a chain as it is play a role of parent block
+	PreviousBlockHash crypto.Hash
+
+	Nonce uint32
+}
+
+// Hash returns hash of the block.
+// It is used as unique identifier of the block.
 func (b *Block) Hash() *crypto.Hash {
 	if b.hash == nil {
 		var allBytesBuffer bytes.Buffer
@@ -66,17 +97,16 @@ func (b *Block) Hash() *crypto.Hash {
 		h.Write(allBytesCount[:written])
 		h.Write(allBytes)
 
-		hashBytes := h.Bytes()
 		b.hash = new(crypto.Hash)
-		b.hash.FromBytes(hashBytes)
+		b.hash.FromBytes(h.Bytes())
 	}
 
 	return b.hash
 }
 
 func (b *Block) Height() uint32 {
-	if len(b.CoinbaseTransaction.Inputs) == 1 {
-		i := b.CoinbaseTransaction.Inputs[0]
+	if len(b.BaseTransaction.Inputs) == 1 {
+		i := b.BaseTransaction.Inputs[0]
 
 		if coinbase, ok := i.(InputCoinbase); ok {
 			return coinbase.BlockIndex
@@ -94,18 +124,24 @@ func (b *Block) Deserialize(r *bytes.Reader) error {
 	majorVersion := b.BlockHeader.MajorVersion
 
 	if majorVersion >= config.BlockMajorVersion5 {
-		if err := b.Signature.Deserialize(r); err != nil {
+		sig := &crypto.Signature{}
+		if err := sig.Deserialize(r); err != nil {
 			return err
 		}
+
+		b.Signature = sig
 	}
 
 	if majorVersion == config.BlockMajorVersion2 || majorVersion == config.BlockMajorVersion3 {
-		if err := b.Parent.deserialize(r); err != nil {
+		parentBlock := &ParentBlock{}
+		if err := parentBlock.deserialize(r); err != nil {
 			return err
 		}
+
+		b.Parent = parentBlock
 	}
 
-	if err := b.CoinbaseTransaction.Deserialize(r); err != nil {
+	if err := b.BaseTransaction.Deserialize(r); err != nil {
 		return err
 	}
 
@@ -143,7 +179,7 @@ func (b *Block) Serialize() []byte {
 		serialized.Write(b.Parent.serialize(false))
 	}
 
-	serialized.Write(b.CoinbaseTransaction.Serialize())
+	serialized.Write(b.BaseTransaction.Serialize())
 
 	buf := make([]byte, binary.MaxVarintLen64)
 	written := binary.PutUvarint(buf, uint64(len(b.TransactionsHashes)))
@@ -169,7 +205,7 @@ func (b *Block) HashingBytes() []byte {
 	/**
 	 * Write merkle root hash bytes
 	 */
-	baseTransactionHash := b.CoinbaseTransaction.Hash()
+	baseTransactionHash := b.BaseTransaction.Hash()
 	hl := crypto.HashList{*baseTransactionHash}
 	hl = append(hl, b.TransactionsHashes...)
 	allBytesBuffer.Write(hl.MerkleRootHash()[:])
@@ -258,130 +294,6 @@ func (h *BlockHeader) serialize() []byte {
 	}
 
 	return serialized.Bytes()
-}
-
-func (pb *ParentBlock) serialize(hashing bool) []byte {
-	buf := make([]byte, binary.MaxVarintLen64)
-
-	var serialized bytes.Buffer
-
-	written := binary.PutUvarint(buf, uint64(pb.MajorVersion))
-	serialized.Write(buf[:written])
-
-	written = binary.PutUvarint(buf, uint64(pb.MinorVersion))
-	serialized.Write(buf[:written])
-
-	written = binary.PutUvarint(buf, pb.Timestamp)
-	serialized.Write(buf[:written])
-
-	serialized.Write(pb.Prev[:])
-
-	_ = binary.Write(&serialized, binary.LittleEndian, pb.Nonce)
-
-	if hashing {
-		th := pb.BaseTransaction.Hash()
-		h := pb.BaseTransactionBranch.TreeHashFromBranch(*th)
-
-		serialized.Write(h[:])
-	}
-
-	written = binary.PutUvarint(buf, uint64(pb.TransactionsCount))
-	serialized.Write(buf[:written])
-
-	for _, tb := range pb.BaseTransactionBranch {
-		serialized.Write(tb[:])
-	}
-
-	serialized.Write(pb.BaseTransaction.serialize())
-
-	for _, h := range pb.BlockchainBranch {
-		serialized.Write(h[:])
-	}
-
-	return serialized.Bytes()
-}
-
-func (pb *ParentBlock) deserialize(r *bytes.Reader) error {
-	var prev crypto.Hash
-	var nonce uint32
-
-	majorVersion, err := binary.ReadUvarint(r)
-	if err != nil {
-		return nil
-	}
-
-	minorVersion, err := binary.ReadUvarint(r)
-	if err != nil {
-		return nil
-	}
-
-	timestamp, err := binary.ReadUvarint(r)
-	if err != nil {
-		return nil
-	}
-
-	if err := prev.Read(r); err != nil {
-		return err
-	}
-
-	if err := binary.Read(r, binary.LittleEndian, &nonce); err != nil {
-		return err
-	}
-
-	txCount, err := binary.ReadUvarint(r)
-	if err != nil {
-		return err
-	}
-
-	var baseTxBranch crypto.HashList
-	branchSize := treeDepth(int(txCount))
-	for i := 0; i < branchSize; i++ {
-		var th crypto.Hash
-		if err := th.Read(r); err != nil {
-			return err
-		}
-		baseTxBranch = append(baseTxBranch, th)
-	}
-
-	baseTx := BaseTransaction{&TransactionPrefix{}, nil}
-	if err := baseTx.deserialize(r); err != nil {
-		return err
-	}
-
-	tef, err := baseTx.ParseExtra()
-	if err != nil {
-		return err
-	}
-
-	if tef.MiningTag == nil {
-		return errors.New("can't get extra merge mining tag")
-	}
-
-	if tef.MiningTag.Depth > 8*32 {
-		return errors.New("wrong merge mining tag depth")
-	}
-
-	var blockchainBranch crypto.HashList
-	for i := uint64(0); i < tef.MiningTag.Depth; i++ {
-		var h crypto.Hash
-		if err := h.Read(r); err != nil {
-			return err
-		}
-		blockchainBranch = append(blockchainBranch, h)
-	}
-
-	pb.MajorVersion = byte(majorVersion)
-	pb.MinorVersion = byte(minorVersion)
-	pb.Timestamp = timestamp
-	pb.Nonce = nonce
-	pb.Prev = prev
-
-	pb.TransactionsCount = uint16(txCount)
-	pb.BaseTransactionBranch = baseTxBranch
-	pb.BaseTransaction = baseTx
-	pb.BlockchainBranch = blockchainBranch
-
-	return nil
 }
 
 //size_t tree_depth(size_t count) {

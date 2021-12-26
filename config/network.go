@@ -8,6 +8,7 @@ import (
 	"github.com/r3volut1oner/go-karbo/utils"
 	"math"
 	"sort"
+	"time"
 )
 
 // Network represents network params
@@ -92,7 +93,7 @@ func MainNet() *Network {
 
 		maxBlockSizeInitial:                1000000,
 		maxBlockSizeGrowthSpeedNumerator:   100 * 1024,
-		maxBlockSizeGrowthSpeedDenominator: uint64(365 * 24 * 60 * 60 / DifficultyTarget),
+		maxBlockSizeGrowthSpeedDenominator: 365 * 24 * 60 * 60 / DifficultyTarget,
 
 		blockUpgradesMap: map[byte]uint32{
 			BlockMajorVersion2: UpgradeHeightV2,
@@ -111,6 +112,11 @@ func TestNet() *Network {
 	return testnet
 }
 
+// Timestamp return current timestamp in the network
+func (n *Network) Timestamp() uint64 {
+	return uint64(time.Now().Unix())
+}
+
 // MaxBlockSize max block size at specific blockchain height
 func (n *Network) MaxBlockSize(h uint64) uint64 {
 	// Code just copied from the C++ code
@@ -127,6 +133,15 @@ func (n *Network) MaxBlockSize(h uint64) uint64 {
 	}
 
 	return maxSize
+}
+
+func (n *Network) MaxTransactionSize(height uint32) uint64 {
+	if height > UpgradeHeightV4 {
+		return transactionMaxSize
+	}
+
+	// Return maximum unachievable possible transaction size by default
+	return math.MaxUint64
 }
 
 func (n *Network) GetBlockMajorVersionForHeight(h uint32) byte {
@@ -161,6 +176,26 @@ func (n *Network) BlockTimestampCheckWindow(majorVersion byte) int {
 	}
 
 	return blockTimestampCheckWindow
+}
+
+func (n *Network) FusionMaxTxSize(height uint32) uint64 {
+	if height <= UpgradeHeightV3 {
+		return blockGrantedFullRewardZone * 30 / 100
+	}
+
+	return blockGrantedFullRewardZoneV1 * 30 / 100
+}
+
+func (n *Network) FusionTxMinInputCount() byte {
+	return fusionTxMinInputCount
+}
+
+func (n *Network) FusionTxMinInOutCountRatio() byte {
+	return fusionTxMinInOutCountRatio
+}
+
+func (n *Network) DefaultDustThreshold() uint64 {
+	return defaultDustThreshold
 }
 
 func (n *Network) MinedMoneyUnlockWindow() uint32 {
@@ -213,10 +248,100 @@ func (n *Network) MinimalFee(height uint32) uint64 {
 	}
 
 	if height > UpgradeHeightV4 && height < UpgradeHeightV4s3 {
-		return minimumFeeV1
+		return minimumFeeV3
 	}
 
 	return minimumFeeV3
+}
+
+// MinimalFeeValidator
+// TODO: Investigate why do we have a different logic for the transaction validation min fee
+func (n *Network) MinimalFeeValidator(height uint32) uint64 {
+	if height <= UpgradeHeightV3s1 {
+		return minimumFeeV1
+	}
+
+	if height > UpgradeHeightV3s1 && height <= UpgradeHeightV4 {
+		return minimumFeeV2
+	}
+
+	if height > UpgradeHeightV4 && height < UpgradeHeightV4s3 {
+		minFee := n.MinimalFee(height)
+		return minFee - (minFee * 20 / 100)
+	}
+
+	return minimumFeeV3
+}
+
+func (n *Network) GetFeePerByte(txExtraSize uint64, minFee uint64) uint64 {
+	if txExtraSize > 100 {
+		return minFee / (100 * (txExtraSize - 100))
+	}
+
+	return 0
+}
+
+func (n *Network) MinMixin() int {
+	return minTxMixinSize
+}
+
+func (n *Network) MaxMixin() int {
+	return maxTxMixinSize
+}
+
+func (n *Network) CoinVersion() byte {
+	return coinVersionV1
+}
+
+func (n *Network) IsValidDecomposedAmount(amount uint64) bool {
+	for _, value := range PrettyAmounts {
+		if value == amount {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (n *Network) BlockGrantedFullRewardZoneByBlockVersion(majorVersion byte) uint64 {
+	if majorVersion >= BlockMajorVersion3 {
+		return blockGrantedFullRewardZone
+	}
+
+	if majorVersion == BlockMajorVersion2 {
+		return blockGrantedFullRewardZoneV2
+	}
+
+	return blockGrantedFullRewardZoneV1
+}
+
+func (n Network) GetBlockReward(majorVersion byte, medianSize, currentBlockSize, alreadyGeneratedCoins, fee uint64) (uint64, uint64, error) {
+	baseReward := n.calculateReward(alreadyGeneratedCoins)
+	medianSize = utils.MaxUint64(medianSize, n.BlockGrantedFullRewardZoneByBlockVersion(majorVersion))
+
+	if currentBlockSize > medianSize*2 {
+		return 0, 0, errors.New(fmt.Sprintf(
+			"block cumulative size is too big: %d, exptec less than %d",
+			currentBlockSize,
+			medianSize*2,
+		))
+	}
+
+	penalizedBaseReward := getPenalizedAmount(baseReward, medianSize, currentBlockSize)
+	penalizedFee := fee
+
+	if majorVersion >= BlockMajorVersion2 {
+		penalizedFee = getPenalizedAmount(fee, medianSize, currentBlockSize)
+	}
+
+	if n.CoinVersion() == coinVersionV1 {
+		penalizedFee = getPenalizedAmount(fee, medianSize, currentBlockSize)
+	}
+
+	emissionChange := penalizedBaseReward - (fee - penalizedFee)
+	reward := penalizedBaseReward + penalizedFee
+
+	return reward, emissionChange, nil
 }
 
 func (n *Network) nextDifficultyV5(height uint32, majorVersion byte, timestamps []uint64, cumulativeDifficulties []uint64) (uint64, error) {
@@ -380,7 +505,7 @@ func (n *Network) nextDifficultyV3(timestamps []uint64, cumulativeDifficulties [
 	// T= target_solvetime;
 	// N = int(45 * (600 / T) ^ 0.3));
 
-	T := uint64(difficultyTarget)
+	T := int64(difficultyTarget)
 	N := difficultyWindow3
 
 	// return a difficulty of 1 for first 3 blocks if it's the start of the chain
@@ -407,20 +532,20 @@ func (n *Network) nextDifficultyV3(timestamps []uint64, cumulativeDifficulties [
 	LWMA := float64(0)
 	sumInverseD := float64(0)
 
-	solveTime := uint64(0)
-	difficulty := uint64(0)
+	solveTime := int64(0)
+	difficulty := int64(0)
 
 	// Loop through N most recent blocks.
 	for i := 1; i <= N; i++ {
-		solveTime = timestamps[i] - timestamps[i-1]
-		solveTime = utils.MinUint64(T*7, utils.MaxUint64(solveTime, -6*T))
-		difficulty = cumulativeDifficulties[i] - cumulativeDifficulties[i-1]
+		solveTime = int64(timestamps[i]) - int64(timestamps[i-1])
+		solveTime = utils.MinInt64(T*7, utils.MaxInt64(solveTime, -6*T))
+		difficulty = int64(cumulativeDifficulties[i]) - int64(cumulativeDifficulties[i-1])
 		LWMA += float64(solveTime*1) / k
 		sumInverseD += 1 / float64(difficulty)
 	}
 
 	// Keep LWMA sane in case something unforeseen occurs.
-	if uint64(math.Round(LWMA)) < T/20 {
+	if int64(math.Round(LWMA)) < T/20 {
 		LWMA = float64(T) / 20
 	}
 
@@ -541,4 +666,44 @@ func (n *Network) nextDifficultyV1(timestamps []uint64, cumulativeDifficulties [
 	}
 
 	return (low + timeSpan - 1) / timeSpan, nil
+}
+
+func (n *Network) calculateReward(alreadyGeneratedCoins uint64) uint64 {
+	baseReward := (moneySupply - alreadyGeneratedCoins) >> emissionSpeedFactor
+
+	if alreadyGeneratedCoins+tailEmissionReward >= moneySupply || baseReward < tailEmissionReward {
+		// flat rate tail emission reward,
+		// inflation slowly diminishing in relation to supply
+		//baseReward = CryptoNote::parameters::TAIL_EMISSION_REWARD;
+		// changed to
+		// Friedman's k-percent rule,
+		// inflation 2% of total coins in circulation per year
+		// according to Whitepaper v. 1, p. 16 (with change of 1% to 2%)
+
+		blocksInOneYear := uint64(expectedNumberOfBlocksPerDay * 365)
+		twoPercentOfEmission := (alreadyGeneratedCoins / 100) * 2
+		baseReward = twoPercentOfEmission / blocksInOneYear
+	}
+
+	return baseReward
+}
+
+func getPenalizedAmount(amount, medianSize, currentBlockSize uint64) uint64 {
+	if amount == 0 {
+		return 0
+	}
+
+	if currentBlockSize <= medianSize {
+		return amount
+	}
+
+	multiplicand := (medianSize * 2) - currentBlockSize
+	multiplicand *= currentBlockSize
+
+	productLo, productHi := utils.Mul128(amount, multiplicand)
+
+	penalizedAmountLo, penalizedAmountHi := utils.Div128p32(productHi, productLo, uint32(medianSize))
+	penalizedAmountLo, penalizedAmountHi = utils.Div128p32(penalizedAmountHi, penalizedAmountLo, uint32(medianSize))
+
+	return penalizedAmountLo
 }

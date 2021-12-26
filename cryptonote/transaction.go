@@ -14,8 +14,6 @@ const (
 	TxTagMultisignature      = 0x3
 )
 
-type KeyImage crypto.EllipticCurvePoint
-
 type TransactionSignatures [][]crypto.Signature
 
 type InputCoinbase struct {
@@ -29,29 +27,29 @@ func (i InputCoinbase) sigCount() int {
 type InputKey struct {
 	Amount        uint64
 	OutputIndexes []uint32
-	KeyImage
+	crypto.KeyImage
 }
 
 func (i InputKey) sigCount() int {
 	return len(i.OutputIndexes)
 }
 
-type InputMultisignature struct {
+type InputMultiSignature struct {
 	Amount         uint64
 	SignatureCount uint8
 	OutputIndex    uint32
 }
 
-func (i InputMultisignature) sigCount() int {
+func (i InputMultiSignature) sigCount() int {
 	return int(i.SignatureCount)
 }
 
 type OutputKey struct {
-	crypto.Key
+	crypto.PublicKey
 }
 
 type OutputMultisignature struct {
-	Keys                    []crypto.Key
+	Keys                    []crypto.PublicKey
 	RequiredSignaturesCount byte
 }
 
@@ -73,11 +71,15 @@ type TransactionPrefix struct {
 	Inputs       []TransactionInput
 	Outputs      []TransactionOutput
 	Extra        []byte
+
+	// hash is used for cache
+	hash *crypto.Hash
 }
 
 type BaseTransaction struct {
 	*TransactionPrefix
 
+	// hash is used for cache
 	hash *crypto.Hash
 }
 
@@ -85,6 +87,7 @@ type Transaction struct {
 	TransactionPrefix
 	TransactionSignatures
 
+	// hash is used for cache
 	hash *crypto.Hash
 }
 
@@ -127,6 +130,15 @@ func (t *BaseTransaction) Hash() *crypto.Hash {
 	}
 
 	return t.hash
+}
+
+func (tp *TransactionPrefix) Hash() *crypto.Hash {
+	if tp.hash == nil {
+		hash := crypto.HashFromBytes(tp.serialize())
+		tp.hash = &hash
+	}
+
+	return tp.hash
 }
 
 func (tp *TransactionPrefix) serialize() []byte {
@@ -183,8 +195,9 @@ func (tp *TransactionPrefix) serialize() []byte {
 
 		switch output.Target.(type) {
 		case OutputKey:
+			outputKey := output.Target.(OutputKey)
 			serialized.WriteByte(TxTagKey)
-			serialized.Write(output.Target.(OutputKey).BytesSlice())
+			serialized.Write(outputKey.PublicKey[:])
 		default:
 		}
 	}
@@ -239,7 +252,7 @@ func (tp *TransactionPrefix) deserialize(br *bytes.Reader) error {
 			tp.Inputs[inputIndex] = InputCoinbase{uint32(blockIndex)}
 		case TxTagKey:
 			var OutputIndexes []uint32
-			var Key KeyImage
+			var Key crypto.KeyImage
 
 			amount, err := binary.ReadUvarint(br)
 			if err != nil {
@@ -306,7 +319,7 @@ func (tp *TransactionPrefix) deserialize(br *bytes.Reader) error {
 
 			tp.Outputs[outputIndex] = TransactionOutput{
 				Amount: amount,
-				Target: OutputKey{crypto.KeyFromArray(keyBytes)},
+				Target: OutputKey{keyBytes},
 			}
 		case TxTagMultisignature:
 			// TODO: Implement multisig

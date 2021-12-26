@@ -4,29 +4,71 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	ed "github.com/r3volut1oner/go-karbo/crypto/edwards25519"
+	"golang.org/x/crypto/sha3"
 )
 
-const HashLength = 32
-
-type Hash [HashLength]byte
+type Hash [32]byte
 
 type HashList []Hash
 
-func (h *Hash) FromBytes(b []byte) {
-	hashed := Keccak(b)
-	copy(h[:HashLength], hashed[:HashLength])
+// Keccak hash function for fast hashing
+// it is the "Crypto::cn_fast_hash" method in C++ implementation
+func Keccak(data []byte) []byte {
+	hash := sha3.NewLegacyKeccak256()
+
+	if _, err := hash.Write(data); err != nil {
+		panic(err)
+	}
+
+	return hash.Sum(nil)
 }
 
-func (h *Hash) Read(r *bytes.Reader) error {
-	if err := binary.Read(r, binary.LittleEndian, h); err != nil {
+func (hash *Hash) FromBytes(b []byte) {
+	hashed := Keccak(b)
+	copy(hash[:32], hashed[:32])
+}
+
+func (hash *Hash) Read(r *bytes.Reader) error {
+	if err := binary.Read(r, binary.LittleEndian, hash); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (h *Hash) String() string {
-	return hex.EncodeToString(h[:])
+func (hash *Hash) String() string {
+	return hex.EncodeToString(hash[:])
+}
+
+func (hash *Hash) toEc() (*ed.ExtendedGroupElement, error) {
+	var p ed.ProjectiveGroupElement
+	var p2 ed.CompletedGroupElement
+	var r ed.ExtendedGroupElement
+
+	if err := p.FromBytes((*[32]byte)(hash)); err != nil {
+		return nil, err
+	}
+
+	ed.GeMul8(&p2, &p)
+	p2.ToExtended(&r)
+
+	return &r, nil
+}
+
+func (hash *Hash) toPoint() (*EllipticCurvePoint, error) {
+	r, err := hash.toEc()
+	if err != nil {
+		return nil, err
+	}
+
+	ecPoint := EllipticCurvePoint(r.ToBytes())
+
+	return &ecPoint, nil
+}
+
+func (hash *Hash) toScalar() EllipticCurveScalar {
+	return ed.ScReduce32(*hash)
 }
 
 func HashFromBytes(b []byte) Hash {

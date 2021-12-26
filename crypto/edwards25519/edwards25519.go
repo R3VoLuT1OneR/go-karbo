@@ -4,7 +4,10 @@
 
 package edwards25519
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"errors"
+)
 
 // This code is a port of the public domain, “ref10” implementation of ed25519
 // from SUPERCOP.
@@ -108,7 +111,7 @@ func FeFromBytes(dst *FieldElement, src *[32]byte) {
 	h6 := load3(src[20:]) << 7
 	h7 := load3(src[23:]) << 5
 	h8 := load3(src[26:]) << 4
-	h9 := (load3(src[29:]) & 8388607) << 2
+	h9 := load3(src[29:]) << 2
 
 	FeCombine(dst, h0, h1, h2, h3, h4, h5, h6, h7, h8, h9)
 }
@@ -136,7 +139,7 @@ func FeFromBytes(dst *FieldElement, src *[32]byte) {
 //
 //   Have q+2^(-255)x = 2^(-255)(h + 19 2^(-25) h9 + 2^(-1))
 //   so floor(2^(-255)(h + 19 2^(-25) h9 + 2^(-1))) = q.
-func FeToBytes(s *[32]byte, h *FieldElement) {
+func FeToBytes(s *[32]byte, h FieldElement) {
 	var carry [10]int32
 
 	q := (19*h[9] + (1 << 24)) >> 25
@@ -227,13 +230,13 @@ func FeToBytes(s *[32]byte, h *FieldElement) {
 
 func FeIsNegative(f *FieldElement) byte {
 	var s [32]byte
-	FeToBytes(&s, f)
+	FeToBytes(&s, *f)
 	return s[0] & 1
 }
 
 func FeIsNonZero(f *FieldElement) int32 {
 	var s [32]byte
-	FeToBytes(&s, f)
+	FeToBytes(&s, *f)
 	var x uint8
 	for _, b := range s {
 		x |= b
@@ -566,6 +569,68 @@ func FeInvert(out, z *FieldElement) {
 	FeMul(out, &t1, &t0) // 254..5,3,1,0
 }
 
+func feDivPowM1(r *FieldElement, u, v FieldElement) {
+	var v3, uv7 FieldElement
+
+	FeSquare(&v3, &v)
+	FeMul(&v3, &v3, &v)
+	FeSquare(&uv7, &v3)
+	FeMul(&uv7, &uv7, &v)
+	FeMul(&uv7, &uv7, &u)
+
+	// fePow22523(&uv7, &uv7)
+	var t0, t1, t2 FieldElement
+	var i int
+
+	FeSquare(&t0, &uv7)
+	FeSquare(&t1, &t0)
+	FeSquare(&t1, &t1)
+	FeMul(&t1, &uv7, &t1)
+	FeMul(&t0, &t0, &t1)
+	FeSquare(&t0, &t0)
+
+	FeMul(&t0, &t1, &t0)
+	FeSquare(&t1, &t0)
+	for i = 1; i < 5; i++ {
+		FeSquare(&t1, &t1)
+	}
+	FeMul(&t0, &t1, &t0)
+	FeSquare(&t1, &t0)
+	for i = 1; i < 10; i++ {
+		FeSquare(&t1, &t1)
+	}
+	FeMul(&t1, &t1, &t0)
+	FeSquare(&t2, &t1)
+	for i = 1; i < 20; i++ {
+		FeSquare(&t2, &t2)
+	}
+	FeMul(&t1, &t2, &t1)
+	for i = 1; i < 11; i++ {
+		FeSquare(&t1, &t1)
+	}
+	FeMul(&t0, &t1, &t0)
+	FeSquare(&t1, &t0)
+	for i = 1; i < 50; i++ {
+		FeSquare(&t1, &t1)
+	}
+	FeMul(&t1, &t1, &t0)
+	FeSquare(&t2, &t1)
+	for i = 1; i < 100; i++ {
+		FeSquare(&t2, &t2)
+	}
+	FeMul(&t1, &t2, &t1)
+	for i = 1; i < 51; i++ {
+		FeSquare(&t1, &t1)
+	}
+	FeMul(&t0, &t1, &t0)
+	FeSquare(&t0, &t0)
+	FeSquare(&t0, &t0)
+	FeMul(&t0, &t0, &uv7)
+
+	FeMul(&t0, &t0, &v3)
+	FeMul(r, &t0, &u)
+}
+
 func fePow22523(out, z *FieldElement) {
 	var t0, t1, t2 FieldElement
 	var i int
@@ -651,10 +716,12 @@ type CompletedGroupElement struct {
 	X, Y, Z, T FieldElement
 }
 
+// PreComputedGroupElement it is "ge_precomp" in C++ implementation
 type PreComputedGroupElement struct {
 	yPlusX, yMinusX, xy2d FieldElement
 }
 
+// CachedGroupElement it is "ge_cached" in C++ implementation
 type CachedGroupElement struct {
 	yPlusX, yMinusX, Z, T2d FieldElement
 }
@@ -679,6 +746,86 @@ func (p *ProjectiveGroupElement) Double(r *CompletedGroupElement) {
 	FeSub(&r.T, &r.T, &r.Z)
 }
 
+func (p *ProjectiveGroupElement) FromBytes(s *[32]byte) error {
+	var u, v, w, x, y, z FieldElement
+	var sign = byte(0)
+
+	FeFromBytes(&u, s)
+
+	FeSquare2(&v, &u) // 2 *u^2
+	FeOne(&w)
+	FeAdd(&w, &v, &w)      // w = 2 * u^2 + 1
+	FeSquare(&x, &w)       // w^2
+	FeMul(&y, &FeMa2, &v)  // -2 * A^2 * u^2
+	FeAdd(&x, &x, &y)      // x = w^2 - 2 * A^2 * u^2
+	feDivPowM1(&p.X, w, x) // (w / x)^(m + 1)
+	FeSquare(&y, &p.X)
+	FeMul(&x, &y, &x)
+	FeSub(&y, &w, &x)
+	FeCopy(&z, &FeMa)
+
+	if FeIsNonZero(&y) != 0 {
+		FeAdd(&y, &w, &x)
+		if FeIsNonZero(&y) != 0 {
+			goto negative
+		} else {
+			FeMul(&p.X, &p.X, &Fefffb1)
+		}
+	} else {
+		FeMul(&p.X, &p.X, &Fefffb2)
+	}
+
+	FeMul(&p.X, &p.X, &u) // u * sqrt(2 * A * (A + 2) * w / x)
+	FeMul(&z, &z, &v)     // -2 * A * u^2
+	sign = 0
+	goto setsign
+negative:
+	FeMul(&x, &x, &SqrtM1)
+	FeSub(&y, &w, &x)
+	if FeIsNonZero(&y) != 0 {
+		// assert((fe_add(y, w, x), !fe_isnonzero(y)))
+		//var assertY FieldElement
+		//FeAdd(&assertY, &w, &x)
+		//if FeIsNonZero(&assertY) != 0 {
+		//	return errors.New("assertion failed: result in Y must be zero")
+		//}
+		FeMul(&p.X, &p.X, &Fefffb3)
+	} else {
+		FeMul(&p.X, &p.X, &Fefffb4)
+	}
+	/* r->X = sqrt(A * (A + 2) * w / x) */
+	/* z = -A */
+	sign = 1
+setsign:
+	if FeIsNegative(&p.X) != sign {
+		if FeIsNonZero(&p.X) == 0 {
+			return errors.New("assertion failed: p.X can't be zero")
+		}
+		FeNeg(&p.X, &p.X)
+	}
+	FeAdd(&p.Z, &z, &w)
+	FeSub(&p.Y, &z, &w)
+	FeMul(&p.X, &p.X, &p.Z)
+
+	//var checkX, checkY, checkIZ, checkV FieldElement
+	//FeInvert(&checkIZ, &p.Z)
+	//FeMul(&checkX, &p.X, &checkIZ)
+	//FeMul(&checkY, &p.Y, &checkIZ)
+	//FeSquare(&checkX, &checkX)
+	//FeSquare(&checkY, &checkY)
+	//FeMul(&checkV, &checkX, &checkY)
+	//FeMul(&checkV, &d, &checkV)
+	//FeAdd(&checkV, &checkV, &checkX)
+	//FeSub(&checkV, &checkV, &checkY)
+	//FeOne(&checkX)
+	//FeAdd(&checkV, &checkV, &checkX)
+	//if FeIsNonZero(&checkV) != 0 {
+	//	return errors.New("assertion failed: checkV must be zero")
+	//}
+
+	return nil
+}
+
 func (p *ProjectiveGroupElement) ToBytes() [32]byte {
 	var s [32]byte
 	var recip, x, y FieldElement
@@ -686,7 +833,7 @@ func (p *ProjectiveGroupElement) ToBytes() [32]byte {
 	FeInvert(&recip, &p.Z)
 	FeMul(&x, &p.X, &recip)
 	FeMul(&y, &p.Y, &recip)
-	FeToBytes(&s, &y)
+	FeToBytes(&s, y)
 	s[31] ^= FeIsNegative(&x) << 7
 
 	return s
@@ -725,16 +872,14 @@ func (p *ExtendedGroupElement) ToBytes() [32]byte {
 	FeInvert(&recip, &p.Z)
 	FeMul(&x, &p.X, &recip)
 	FeMul(&y, &p.Y, &recip)
-	FeToBytes(&s, &y)
+	FeToBytes(&s, y)
 	s[31] ^= FeIsNegative(&x) << 7
 
 	return s
 }
 
 func (p *ExtendedGroupElement) FromBytes(s *[32]byte) bool {
-	var u, v, v3, vxx, check FieldElement
-
-	// FeFromBytes(&p.Y, s)
+	var u, v, vxx, check FieldElement
 
 	h0 := load4(s[:])
 	h1 := load3(s[4:]) << 6
@@ -745,10 +890,10 @@ func (p *ExtendedGroupElement) FromBytes(s *[32]byte) bool {
 	h6 := load3(s[20:]) << 7
 	h7 := load3(s[23:]) << 5
 	h8 := load3(s[26:]) << 4
-	h9 := (load3(s[29:]) & 8388607) << 2
+	h9 := (load3(s[29:]) & 8388607) << 2 // Because of this we can't use "FeFromBytes(&p.Y, s)"
 
 	// src/crypto/crypto-ops.c:1254
-	// Validate the number to be canonical
+	// validate the number to be canonical
 	if h9 == 33554428 && h8 == 268435440 && h7 == 536870880 && h6 == 2147483520 &&
 		h5 == 4294967295 && h4 == 67108860 && h3 == 134217720 && h2 == 536870880 &&
 		h1 == 1073741760 && h0 >= 4294967277 {
@@ -763,29 +908,30 @@ func (p *ExtendedGroupElement) FromBytes(s *[32]byte) bool {
 	FeSub(&u, &u, &p.Z) // y = y^2-1
 	FeAdd(&v, &v, &p.Z) // v = dy^2+1
 
-	FeSquare(&v3, &v)
-	FeMul(&v3, &v3, &v) // v3 = v^3
-	FeSquare(&p.X, &v3)
-	FeMul(&p.X, &p.X, &v)
-	FeMul(&p.X, &p.X, &u) // x = uv^7
-
-	fePow22523(&p.X, &p.X) // x = (uv^7)^((q-5)/8)
-	FeMul(&p.X, &p.X, &v3)
-	FeMul(&p.X, &p.X, &u) // x = uv^3(uv^7)^((q-5)/8)
+	//FeSquare(&v3, &v)
+	//FeMul(&v3, &v3, &v) // v3 = v^3
+	//FeSquare(&p.X, &v3)
+	//FeMul(&p.X, &p.X, &v)
+	//FeMul(&p.X, &p.X, &u) // x = uv^7
+	//
+	//fePow22523(&p.X, &p.X) // x = (uv^7)^((q-5)/8)
+	//FeMul(&p.X, &p.X, &v3)
+	//FeMul(&p.X, &p.X, &u) // x = uv^3(uv^7)^((q-5)/8)
+	feDivPowM1(&p.X, u, v)
 
 	var tmpX, tmp2 [32]byte
 
 	FeSquare(&vxx, &p.X)
 	FeMul(&vxx, &vxx, &v)
 	FeSub(&check, &vxx, &u) // vx^2-u
-	if FeIsNonZero(&check) == 1 {
+	if FeIsNonZero(&check) != 0 {
 		FeAdd(&check, &vxx, &u) // vx^2+u
-		if FeIsNonZero(&check) == 1 {
+		if FeIsNonZero(&check) != 0 {
 			return false
 		}
 		FeMul(&p.X, &p.X, &SqrtM1)
 
-		FeToBytes(&tmpX, &p.X)
+		FeToBytes(&tmpX, p.X)
 		for i, v := range tmpX {
 			tmp2[31-i] = v
 		}
@@ -823,7 +969,21 @@ func (p *PreComputedGroupElement) Zero() {
 	FeZero(&p.xy2d)
 }
 
-func geAdd(r *CompletedGroupElement, p *ExtendedGroupElement, q *CachedGroupElement) {
+func (p *CachedGroupElement) Zero() {
+	FeOne(&p.yPlusX)
+	FeOne(&p.yMinusX)
+	FeOne(&p.Z)
+	FeZero(&p.T2d)
+}
+
+func (p *CachedGroupElement) CMove(u *CachedGroupElement, b int32) {
+	FeCMove(&p.yPlusX, &u.yPlusX, b)
+	FeCMove(&p.yMinusX, &u.yMinusX, b)
+	FeCMove(&p.Z, &u.Z, b)
+	FeCMove(&p.T2d, &u.T2d, b)
+}
+
+func GeAdd(r *CompletedGroupElement, p *ExtendedGroupElement, q *CachedGroupElement) {
 	var t0 FieldElement
 
 	FeAdd(&r.X, &p.Y, &p.X)
@@ -839,7 +999,7 @@ func geAdd(r *CompletedGroupElement, p *ExtendedGroupElement, q *CachedGroupElem
 	FeSub(&r.T, &t0, &r.T)
 }
 
-func geSub(r *CompletedGroupElement, p *ExtendedGroupElement, q *CachedGroupElement) {
+func GeSub(r *CompletedGroupElement, p *ExtendedGroupElement, q *CachedGroupElement) {
 	var t0 FieldElement
 
 	FeAdd(&r.X, &p.Y, &p.X)
@@ -915,11 +1075,269 @@ func slide(r *[256]int8, a *[32]byte) {
 	}
 }
 
-// GeDoubleScalarMultVartime sets r = a*A + b*B
+func GeCheckSubGroupPreCompVartime(p [8]CachedGroupElement) int32 {
+	var s ExtendedGroupElement
+	var t CompletedGroupElement
+	var u ProjectiveGroupElement
+
+	s.Zero()
+	GeAdd(&t, &s, &p[7])
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[0])
+	t.ToProjective(&u)
+
+	for i := 0; i < 125; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[2])
+	t.ToProjective(&u)
+
+	for i := 0; i < 4; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[3])
+	t.ToProjective(&u)
+
+	for i := 0; i < 4; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeSub(&t, &s, &p[0])
+	t.ToProjective(&u)
+
+	for i := 0; i < 6; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeSub(&t, &s, &p[1])
+	t.ToProjective(&u)
+
+	for i := 0; i < 3; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeSub(&t, &s, &p[0])
+	t.ToProjective(&u)
+
+	for i := 0; i < 7; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeSub(&t, &s, &p[5])
+	t.ToProjective(&u)
+
+	for i := 0; i < 4; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[1])
+	t.ToProjective(&u)
+
+	for i := 0; i < 4; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeSub(&t, &s, &p[0])
+	t.ToProjective(&u)
+
+	for i := 0; i < 5; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeSub(&t, &s, &p[1])
+	t.ToProjective(&u)
+
+	for i := 0; i < 6; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeSub(&t, &s, &p[6])
+	t.ToProjective(&u)
+
+	for i := 0; i < 4; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[5])
+	t.ToProjective(&u)
+
+	for i := 0; i < 5; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[5])
+	t.ToProjective(&u)
+
+	for i := 0; i < 9; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[4])
+	t.ToProjective(&u)
+
+	for i := 0; i < 3; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[1])
+	t.ToProjective(&u)
+
+	for i := 0; i < 4; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[1])
+	t.ToProjective(&u)
+
+	for i := 0; i < 6; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[6])
+	t.ToProjective(&u)
+
+	for i := 0; i < 3; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[1])
+	t.ToProjective(&u)
+
+	for i := 0; i < 4; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeSub(&t, &s, &p[1])
+	t.ToProjective(&u)
+
+	for i := 0; i < 6; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeSub(&t, &s, &p[2])
+	t.ToProjective(&u)
+
+	for i := 0; i < 6; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeSub(&t, &s, &p[5])
+	t.ToProjective(&u)
+
+	for i := 0; i < 7; i++ {
+		u.Double(&t)
+		t.ToProjective(&u)
+	}
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeSub(&t, &s, &p[2])
+	t.ToProjective(&u)
+
+	u.Double(&t)
+	t.ToProjective(&u)
+
+	u.Double(&t)
+	t.ToExtended(&s)
+	GeAdd(&t, &s, &p[0])
+	FeSub(&t.Y, &t.Y, &t.T)
+
+	return FeIsNonZero(&t.Y)
+}
+
+func GeDSMPreComp(s *ExtendedGroupElement) (r [8]CachedGroupElement) {
+	var t CompletedGroupElement
+	var s2, u ExtendedGroupElement
+
+	s.ToCached(&r[0])
+	s.Double(&t)
+	t.ToExtended(&s2)
+
+	for i := 0; i < 7; i++ {
+		GeAdd(&t, &s2, &r[i])
+		t.ToExtended(&u)
+		u.ToCached(&r[i+1])
+	}
+
+	return r
+}
+
+func GeMul8(r *CompletedGroupElement, t *ProjectiveGroupElement) {
+	var u ProjectiveGroupElement
+	t.Double(r)
+	r.ToProjective(&u)
+	u.Double(r)
+	r.ToProjective(&u)
+	u.Double(r)
+}
+
+// GeDoubleScalarMultBaseVartime sets r = a*A + b*B
 // where a = a[0]+256*a[1]+...+256^31 a[31].
 // and b = b[0]+256*b[1]+...+256^31 b[31].
 // B is the Ed25519 base point (x,4/5) with x positive.
-func GeDoubleScalarMultVartime(r *ProjectiveGroupElement, a *[32]byte, A *ExtendedGroupElement, b *[32]byte) {
+func GeDoubleScalarMultBaseVartime(r *ProjectiveGroupElement, a *[32]byte, A *ExtendedGroupElement, b *[32]byte) {
 	var aSlide, bSlide [256]int8
 	var Ai [8]CachedGroupElement // A,3A,5A,7A,9A,11A,13A,15A
 	var t CompletedGroupElement
@@ -934,7 +1352,7 @@ func GeDoubleScalarMultVartime(r *ProjectiveGroupElement, a *[32]byte, A *Extend
 	t.ToExtended(&A2)
 
 	for i := 0; i < 7; i++ {
-		geAdd(&t, &A2, &Ai[i])
+		GeAdd(&t, &A2, &Ai[i])
 		t.ToExtended(&u)
 		u.ToCached(&Ai[i+1])
 	}
@@ -952,10 +1370,10 @@ func GeDoubleScalarMultVartime(r *ProjectiveGroupElement, a *[32]byte, A *Extend
 
 		if aSlide[i] > 0 {
 			t.ToExtended(&u)
-			geAdd(&t, &u, &Ai[aSlide[i]/2])
+			GeAdd(&t, &u, &Ai[aSlide[i]/2])
 		} else if aSlide[i] < 0 {
 			t.ToExtended(&u)
-			geSub(&t, &u, &Ai[(-aSlide[i])/2])
+			GeSub(&t, &u, &Ai[(-aSlide[i])/2])
 		}
 
 		if bSlide[i] > 0 {
@@ -964,6 +1382,48 @@ func GeDoubleScalarMultVartime(r *ProjectiveGroupElement, a *[32]byte, A *Extend
 		} else if bSlide[i] < 0 {
 			t.ToExtended(&u)
 			geMixedSub(&t, &u, &bi[(-bSlide[i])/2])
+		}
+
+		t.ToProjective(r)
+	}
+}
+
+func GeDoubleScalarMultPrecompVartime(r *ProjectiveGroupElement, a *[32]byte, A *ExtendedGroupElement, b *[32]byte, Bi [8]CachedGroupElement) {
+	var aSlide, bSlide [256]int8
+	var t CompletedGroupElement
+	var u ExtendedGroupElement
+	var i int
+
+	slide(&aSlide, a)
+	slide(&bSlide, b)
+
+	Ai := GeDSMPreComp(A)
+
+	r.Zero()
+
+	for i = 255; i >= 0; i-- {
+		if aSlide[i] != 0 || bSlide[i] != 0 {
+			break
+		}
+	}
+
+	for ; i >= 0; i-- {
+		r.Double(&t)
+
+		if aSlide[i] > 0 {
+			t.ToExtended(&u)
+			GeAdd(&t, &u, &Ai[aSlide[i]/2])
+		} else if aSlide[i] < 0 {
+			t.ToExtended(&u)
+			GeSub(&t, &u, &Ai[(-aSlide[i])/2])
+		}
+
+		if bSlide[i] > 0 {
+			t.ToExtended(&u)
+			GeAdd(&t, &u, &Bi[bSlide[i]/2])
+		} else if bSlide[i] < 0 {
+			t.ToExtended(&u)
+			GeSub(&t, &u, &Bi[(-bSlide[i])/2])
 		}
 
 		t.ToProjective(r)
@@ -1010,7 +1470,7 @@ func selectPoint(t *PreComputedGroupElement, pos int32, b int32) {
 //
 // Preconditions:
 //   a[31] <= 127
-func GeScalarMultBase(h *ExtendedGroupElement, a [32]byte) {
+func GeScalarMultBase(h *ExtendedGroupElement, a *[32]byte) {
 	var e [64]int8
 
 	for i, v := range a {
@@ -1054,6 +1514,279 @@ func GeScalarMultBase(h *ExtendedGroupElement, a [32]byte) {
 		geMixedAdd(&r, h, &t)
 		r.ToExtended(h)
 	}
+}
+
+// Assumes that a[31] <= 127
+func GeScalarMult(a *[32]byte, A *ExtendedGroupElement) (r ProjectiveGroupElement) {
+	var e [64]int8
+	var carry, carry2 int32
+	var Ai [8]CachedGroupElement
+	var t CompletedGroupElement
+	var u ExtendedGroupElement
+
+	for i := 0; i < 31; i++ {
+		carry += int32(a[i])                     // 0..256
+		carry2 = (carry + 8) >> 4                // 0..16
+		e[2*i] = int8(carry - (carry2 << 4))     // -8..7
+		carry = (carry2 + 8) >> 4                // 0..1
+		e[(2*i)+1] = int8(carry2 - (carry << 4)) // -8..7
+	}
+
+	carry += int32(a[31])               // 0..128
+	carry2 = (carry + 8) >> 4           // 0..8
+	e[62] = int8(carry - (carry2 << 4)) // -8..7
+	e[63] = int8(carry2)                // 0..8
+
+	A.ToCached(&Ai[0])
+	for i := 0; i < 7; i++ {
+		GeAdd(&t, A, &Ai[i])
+		t.ToExtended(&u)
+		u.ToCached(&Ai[i+1])
+	}
+
+	r.Zero()
+	for i := 63; i >= 0; i-- {
+		b := e[i]
+		bnegative := int8(negative(int32(b)))
+		babs := b - (((-bnegative) & b) << 1)
+
+		var cur, minuscur CachedGroupElement
+
+		r.Double(&t)
+		t.ToProjective(&r)
+		r.Double(&t)
+		t.ToProjective(&r)
+		r.Double(&t)
+		t.ToProjective(&r)
+		r.Double(&t)
+		t.ToExtended(&u)
+
+		cur.Zero()
+		cur.CMove(&Ai[0], equal(int32(babs), 1))
+		cur.CMove(&Ai[1], equal(int32(babs), 2))
+		cur.CMove(&Ai[2], equal(int32(babs), 3))
+		cur.CMove(&Ai[3], equal(int32(babs), 4))
+		cur.CMove(&Ai[4], equal(int32(babs), 5))
+		cur.CMove(&Ai[5], equal(int32(babs), 6))
+		cur.CMove(&Ai[6], equal(int32(babs), 7))
+		cur.CMove(&Ai[7], equal(int32(babs), 8))
+
+		FeCopy(&minuscur.yPlusX, &cur.yMinusX)
+		FeCopy(&minuscur.yMinusX, &cur.yPlusX)
+		FeCopy(&minuscur.Z, &cur.Z)
+		FeNeg(&minuscur.T2d, &cur.T2d)
+
+		cur.CMove(&minuscur, int32(bnegative))
+		GeAdd(&t, &u, &cur)
+		t.ToProjective(&r)
+	}
+
+	return
+}
+
+func ScAdd(a, b *[32]byte) [32]byte {
+	var out [32]byte
+
+	a0 := 2097151 & load3(a[:])
+	a1 := 2097151 & (load4(a[2:]) >> 5)
+	a2 := 2097151 & (load3(a[5:]) >> 2)
+	a3 := 2097151 & (load4(a[7:]) >> 7)
+	a4 := 2097151 & (load4(a[10:]) >> 4)
+	a5 := 2097151 & (load3(a[13:]) >> 1)
+	a6 := 2097151 & (load4(a[15:]) >> 6)
+	a7 := 2097151 & (load3(a[18:]) >> 3)
+	a8 := 2097151 & load3(a[21:])
+	a9 := 2097151 & (load4(a[23:]) >> 5)
+	a10 := 2097151 & (load3(a[26:]) >> 2)
+	a11 := load4(a[28:]) >> 7
+
+	b0 := 2097151 & load3(b[:])
+	b1 := 2097151 & (load4(b[2:]) >> 5)
+	b2 := 2097151 & (load3(b[5:]) >> 2)
+	b3 := 2097151 & (load4(b[7:]) >> 7)
+	b4 := 2097151 & (load4(b[10:]) >> 4)
+	b5 := 2097151 & (load3(b[13:]) >> 1)
+	b6 := 2097151 & (load4(b[15:]) >> 6)
+	b7 := 2097151 & (load3(b[18:]) >> 3)
+	b8 := 2097151 & load3(b[21:])
+	b9 := 2097151 & (load4(b[23:]) >> 5)
+	b10 := 2097151 & (load3(b[26:]) >> 2)
+	b11 := load4(b[28:]) >> 7
+
+	s0 := a0 + b0
+	s1 := a1 + b1
+	s2 := a2 + b2
+	s3 := a3 + b3
+	s4 := a4 + b4
+	s5 := a5 + b5
+	s6 := a6 + b6
+	s7 := a7 + b7
+	s8 := a8 + b8
+	s9 := a9 + b9
+	s10 := a10 + b10
+	s11 := a11 + b11
+	s12 := int64(0)
+
+	var carry [12]int64
+
+	carry[0] = (s0 + (1 << 20)) >> 21
+	s1 += carry[0]
+	s0 -= carry[0] << 21
+	carry[2] = (s2 + (1 << 20)) >> 21
+	s3 += carry[2]
+	s2 -= carry[2] << 21
+	carry[4] = (s4 + (1 << 20)) >> 21
+	s5 += carry[4]
+	s4 -= carry[4] << 21
+	carry[6] = (s6 + (1 << 20)) >> 21
+	s7 += carry[6]
+	s6 -= carry[6] << 21
+	carry[8] = (s8 + (1 << 20)) >> 21
+	s9 += carry[8]
+	s8 -= carry[8] << 21
+	carry[10] = (s10 + (1 << 20)) >> 21
+	s11 += carry[10]
+	s10 -= carry[10] << 21
+
+	carry[1] = (s1 + (1 << 20)) >> 21
+	s2 += carry[1]
+	s1 -= carry[1] << 21
+	carry[3] = (s3 + (1 << 20)) >> 21
+	s4 += carry[3]
+	s3 -= carry[3] << 21
+	carry[5] = (s5 + (1 << 20)) >> 21
+	s6 += carry[5]
+	s5 -= carry[5] << 21
+	carry[7] = (s7 + (1 << 20)) >> 21
+	s8 += carry[7]
+	s7 -= carry[7] << 21
+	carry[9] = (s9 + (1 << 20)) >> 21
+	s10 += carry[9]
+	s9 -= carry[9] << 21
+	carry[11] = (s11 + (1 << 20)) >> 21
+	s12 += carry[11]
+	s11 -= carry[11] << 21
+
+	s0 += s12 * 666643
+	s1 += s12 * 470296
+	s2 += s12 * 654183
+	s3 -= s12 * 997805
+	s4 += s12 * 136657
+	s5 -= s12 * 683901
+	s12 = 0
+
+	carry[0] = s0 >> 21
+	s1 += carry[0]
+	s0 -= carry[0] << 21
+	carry[1] = s1 >> 21
+	s2 += carry[1]
+	s1 -= carry[1] << 21
+	carry[2] = s2 >> 21
+	s3 += carry[2]
+	s2 -= carry[2] << 21
+	carry[3] = s3 >> 21
+	s4 += carry[3]
+	s3 -= carry[3] << 21
+	carry[4] = s4 >> 21
+	s5 += carry[4]
+	s4 -= carry[4] << 21
+	carry[5] = s5 >> 21
+	s6 += carry[5]
+	s5 -= carry[5] << 21
+	carry[6] = s6 >> 21
+	s7 += carry[6]
+	s6 -= carry[6] << 21
+	carry[7] = s7 >> 21
+	s8 += carry[7]
+	s7 -= carry[7] << 21
+	carry[8] = s8 >> 21
+	s9 += carry[8]
+	s8 -= carry[8] << 21
+	carry[9] = s9 >> 21
+	s10 += carry[9]
+	s9 -= carry[9] << 21
+	carry[10] = s10 >> 21
+	s11 += carry[10]
+	s10 -= carry[10] << 21
+	carry[11] = s11 >> 21
+	s12 += carry[11]
+	s11 -= carry[11] << 21
+
+	s0 += s12 * 666643
+	s1 += s12 * 470296
+	s2 += s12 * 654183
+	s3 -= s12 * 997805
+	s4 += s12 * 136657
+	s5 -= s12 * 683901
+
+	carry[0] = s0 >> 21
+	s1 += carry[0]
+	s0 -= carry[0] << 21
+	carry[1] = s1 >> 21
+	s2 += carry[1]
+	s1 -= carry[1] << 21
+	carry[2] = s2 >> 21
+	s3 += carry[2]
+	s2 -= carry[2] << 21
+	carry[3] = s3 >> 21
+	s4 += carry[3]
+	s3 -= carry[3] << 21
+	carry[4] = s4 >> 21
+	s5 += carry[4]
+	s4 -= carry[4] << 21
+	carry[5] = s5 >> 21
+	s6 += carry[5]
+	s5 -= carry[5] << 21
+	carry[6] = s6 >> 21
+	s7 += carry[6]
+	s6 -= carry[6] << 21
+	carry[7] = s7 >> 21
+	s8 += carry[7]
+	s7 -= carry[7] << 21
+	carry[8] = s8 >> 21
+	s9 += carry[8]
+	s8 -= carry[8] << 21
+	carry[9] = s9 >> 21
+	s10 += carry[9]
+	s9 -= carry[9] << 21
+	carry[10] = s10 >> 21
+	s11 += carry[10]
+	s10 -= carry[10] << 21
+
+	out[0] = byte(s0 >> 0)
+	out[1] = byte(s0 >> 8)
+	out[2] = byte((s0 >> 16) | (s1 << 5))
+	out[3] = byte(s1 >> 3)
+	out[4] = byte(s1 >> 11)
+	out[5] = byte((s1 >> 19) | (s2 << 2))
+	out[6] = byte(s2 >> 6)
+	out[7] = byte((s2 >> 14) | (s3 << 7))
+	out[8] = byte(s3 >> 1)
+	out[9] = byte(s3 >> 9)
+	out[10] = byte((s3 >> 17) | (s4 << 4))
+	out[11] = byte(s4 >> 4)
+	out[12] = byte(s4 >> 12)
+	out[13] = byte((s4 >> 20) | (s5 << 1))
+	out[14] = byte(s5 >> 7)
+	out[15] = byte((s5 >> 15) | (s6 << 6))
+	out[16] = byte(s6 >> 2)
+	out[17] = byte(s6 >> 10)
+	out[18] = byte((s6 >> 18) | (s7 << 3))
+	out[19] = byte(s7 >> 5)
+	out[20] = byte(s7 >> 13)
+	out[21] = byte(s8 >> 0)
+	out[22] = byte(s8 >> 8)
+	out[23] = byte((s8 >> 16) | (s9 << 5))
+	out[24] = byte(s9 >> 3)
+	out[25] = byte(s9 >> 11)
+	out[26] = byte((s9 >> 19) | (s10 << 2))
+	out[27] = byte(s10 >> 6)
+	out[28] = byte((s10 >> 14) | (s11 << 7))
+	out[29] = byte(s11 >> 1)
+	out[30] = byte(s11 >> 9)
+	out[31] = byte(s11 >> 17)
+
+	return out
 }
 
 func ScSub(a, b [32]byte) [32]byte {
@@ -2649,6 +3382,15 @@ func ScReduce(s [64]byte) [32]byte {
 // order is the order of Curve25519 in little-endian form.
 var order = [4]uint64{0x5812631a5cf5d3ed, 0x14def9dea2f79cd6, 0, 0x1000000000000000}
 
+func ScZero() [32]byte {
+	return [32]byte{
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+	}
+}
+
 // ScMinimal returns true if the given scalar is less than the order of the
 // curve.
 func ScMinimal(scalar *[32]byte) bool {
@@ -2684,4 +3426,14 @@ func ScIsNonZero(s [32]byte) bool {
 		s[9]|s[10]|s[11]|s[12]|s[13]|s[14]|s[15]|s[16]|s[17]|
 		s[18]|s[19]|s[20]|s[21]|s[22]|s[23]|s[24]|s[25]|s[26]|
 		s[27]|s[28]|s[29]|s[30]|s[31]) - 1) >> 8) + 1)
+}
+
+func GeFromBytes(b *[32]byte) (*ExtendedGroupElement, error) {
+	p := ExtendedGroupElement{}
+
+	if !p.FromBytes(b) {
+		return nil, errors.New("failed to get point from bytes array")
+	}
+
+	return &p, nil
 }

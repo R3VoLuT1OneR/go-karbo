@@ -23,6 +23,24 @@ var A = FieldElement{
 	486662, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 }
 
+// FeMa2 = -A^2
+var FeMa2 = FieldElement{-12721188, -3529, 0, 0, 0, 0, 0, 0, 0, 0}
+
+// FeMa = -A
+var FeMa = FieldElement{-486662, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+
+// Fefffb1 = sqrt(-2 * A * (A + 2))
+var Fefffb1 = FieldElement{-31702527, -2466483, -26106795, -12203692, -12169197, -321052, 14850977, -10296299, -16929438, -407568}
+
+// Fefffb2 = sqrt(2 * A * (A + 2))
+var Fefffb2 = FieldElement{8166131, -6741800, -17040804, 3154616, 21461005, 1466302, -30876704, -6368709, 10503587, -13363080}
+
+// Fefffb3 = sqrt(-sqrt(-1) * A * (A + 2))
+var Fefffb3 = FieldElement{-13620103, 14639558, 4532995, 7679154, 16815101, -15883539, -22863840, -14813421, 13716513, -6477756}
+
+// Fefffb4 = sqrt(sqrt(-1) * A * (A + 2))
+var Fefffb4 = FieldElement{-21786234, -12173074, 21573800, 4524538, -4645904, 16204591, 8012863, -8444712, 3212926, 6885324}
+
 // bi contains precomputed multiples of the base-point. See the Ed25519 paper
 // for a discussion about how these values are used.
 var bi = [8]PreComputedGroupElement{

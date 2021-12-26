@@ -36,7 +36,7 @@ type TransactionExtraMergeMiningTag struct {
 }
 
 type TransactionExtraFields struct {
-	PublicKey crypto.Key
+	PublicKey crypto.PublicKey
 	Nonce     []byte
 	MiningTag *TransactionExtraMergeMiningTag
 
@@ -76,14 +76,11 @@ func TxExtraFromBytes(b []byte) (*TransactionExtraFields, error) {
 				}
 			}
 		case TxExtraTagPubkey:
-			kb := make([]byte, 32)
-			if err := binary.Read(r, binary.LittleEndian, kb); err != nil {
+			publicKeyBytes := make([]byte, 32)
+			if err := binary.Read(r, binary.LittleEndian, publicKeyBytes); err != nil {
 				return nil, err
 			}
-			tef.PublicKey, err = crypto.KeyFromBytes(kb)
-			if err != nil {
-				return nil, err
-			}
+			copy(tef.PublicKey[:], publicKeyBytes[:])
 		case TxExtraTagNonce:
 			size, err := binary.ReadUvarint(r)
 			if err != nil {

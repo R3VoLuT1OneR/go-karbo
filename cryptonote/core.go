@@ -80,7 +80,7 @@ func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	coinbaseTransactionSize := b.CoinbaseTransaction.Size()
+	coinbaseTransactionSize := b.BaseTransaction.Size()
 	if coinbaseTransactionSize > c.BlockChain.Network.MaxTxSize {
 		c.logger.Errorf(fmt.Sprintf(
 			"coinbase transaction size %d bigger than allowed %d",

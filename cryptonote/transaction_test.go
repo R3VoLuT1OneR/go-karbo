@@ -54,13 +54,13 @@ func TestTransaction_Deserialize(t *testing.T) {
 	assert.Equal(t, 38146972656250, int(transaction.TransactionPrefix.Outputs[0].Amount))
 	assert.IsType(t, OutputKey{}, transaction.TransactionPrefix.Outputs[0].Target)
 	assert.Equal(t,
-		[32]byte{
+		crypto.PublicKey([32]byte{
 			0x9b, 0x2e, 0x4c, 0x2, 0x81, 0xc0, 0xb0, 0x2e,
 			0x7c, 0x53, 0x29, 0x1a, 0x94, 0xd1, 0xd0, 0xcb,
 			0xff, 0x88, 0x83, 0xf8, 0x2, 0x4f, 0x51, 0x42,
 			0xee, 0x49, 0x4f, 0xfb, 0xbd, 0x8, 0x80, 0x71,
-		},
-		transaction.TransactionPrefix.Outputs[0].Target.(OutputKey).Key.Bytes(),
+		}),
+		transaction.TransactionPrefix.Outputs[0].Target.(OutputKey).PublicKey,
 	)
 
 	assert.Equal(t,
