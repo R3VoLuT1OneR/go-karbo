@@ -129,6 +129,15 @@ func (n *Network) MaxBlockSize(h uint64) uint64 {
 	return maxSize
 }
 
+func (n *Network) MaxTransactionSize(height uint32) uint64 {
+	if height > UpgradeHeightV4 {
+		return transactionMaxSize
+	}
+
+	// Return maximum unachievable possible transaction size by default
+	return math.MaxUint64
+}
+
 func (n *Network) GetBlockMajorVersionForHeight(h uint32) byte {
 	for majorVersion, upgradeHeight := range n.blockUpgradesMap {
 		if h < upgradeHeight {
@@ -380,7 +389,7 @@ func (n *Network) nextDifficultyV3(timestamps []uint64, cumulativeDifficulties [
 	// T= target_solvetime;
 	// N = int(45 * (600 / T) ^ 0.3));
 
-	T := uint64(difficultyTarget)
+	T := int64(difficultyTarget)
 	N := difficultyWindow3
 
 	// return a difficulty of 1 for first 3 blocks if it's the start of the chain
@@ -407,20 +416,20 @@ func (n *Network) nextDifficultyV3(timestamps []uint64, cumulativeDifficulties [
 	LWMA := float64(0)
 	sumInverseD := float64(0)
 
-	solveTime := uint64(0)
-	difficulty := uint64(0)
+	solveTime := int64(0)
+	difficulty := int64(0)
 
 	// Loop through N most recent blocks.
 	for i := 1; i <= N; i++ {
-		solveTime = timestamps[i] - timestamps[i-1]
-		solveTime = utils.MinUint64(T*7, utils.MaxUint64(solveTime, -6*T))
-		difficulty = cumulativeDifficulties[i] - cumulativeDifficulties[i-1]
+		solveTime = int64(timestamps[i]) - int64(timestamps[i-1])
+		solveTime = utils.MinInt64(T*7, utils.MaxInt64(solveTime, -6*T))
+		difficulty = int64(cumulativeDifficulties[i]) - int64(cumulativeDifficulties[i-1])
 		LWMA += float64(solveTime*1) / k
 		sumInverseD += 1 / float64(difficulty)
 	}
 
 	// Keep LWMA sane in case something unforeseen occurs.
-	if uint64(math.Round(LWMA)) < T/20 {
+	if int64(math.Round(LWMA)) < T/20 {
 		LWMA = float64(T) / 20
 	}
 

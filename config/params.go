@@ -32,11 +32,22 @@ const (
 	UpgradeHeightV4s3 = uint32(667000)
 	UpgradeHeightV5   = uint32(700000)
 
+	MinedMoneyUnlockWindow = uint32(10)
+
 	blockFutureTimeLimit   = DifficultyTarget * 7
 	blockFutureTimeLimitV1 = DifficultyTarget * 3
 
 	blockTimestampCheckWindow   = 60
 	blockTimestampCheckWindowV1 = 11
+
+	blockGrantedFullRewardZone        = 1000000
+	blockGrantedFullRewardZoneV1      = 100000
+	blockGrantedFullRewardZoneV2      = 1000000
+	blockGrantedFullRewardZoneCurrent = blockGrantedFullRewardZone
+
+	transactionCoinbaseBlobReservedSize = 600
+
+	transactionMaxSize = uint64((blockGrantedFullRewardZoneCurrent / 4) - transactionCoinbaseBlobReservedSize)
 
 	minedMoneyUnlockWindow = 10
 

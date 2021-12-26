@@ -36,13 +36,13 @@ func (i InputKey) sigCount() int {
 	return len(i.OutputIndexes)
 }
 
-type InputMultisignature struct {
+type InputMultiSignature struct {
 	Amount         uint64
 	SignatureCount uint8
 	OutputIndex    uint32
 }
 
-func (i InputMultisignature) sigCount() int {
+func (i InputMultiSignature) sigCount() int {
 	return int(i.SignatureCount)
 }
 
