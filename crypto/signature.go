@@ -33,10 +33,8 @@ func (s *sComm) bytes() ([]byte, error) {
 	return bufBytes.Bytes(), nil
 }
 
-// SignHash generates new signature
-//
-// Sig =
-func SignHash(hash Hash, secretKey Key) (*Signature, error) {
+// Sign the hash with the private key.
+func (hash Hash) Sign(secretKey Key) (*Signature, error) {
 	sig := Signature{}
 
 	var tmp3 ed.ExtendedGroupElement

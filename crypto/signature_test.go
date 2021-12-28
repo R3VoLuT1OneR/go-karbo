@@ -30,7 +30,7 @@ func TestSignatureGenerateAndThenCheck(t *testing.T) {
 	secretKey, _ := GenerateKey()
 	publicKey, _ := PublicFromPrivate(secretKey)
 
-	sig, _ := SignHash(hash, secretKey)
+	sig, _ := hash.Sign(secretKey)
 
 	assert.True(t, sig.Check(hash, publicKey))
 }
@@ -68,7 +68,7 @@ func TestGenerateSignature(t *testing.T) {
 		var expectedSignature Signature
 		_ = expectedSignature.Deserialize(bytes.NewReader(sigBytes))
 
-		sig, _ := SignHash(hash, sk)
+		sig, _ := hash.Sign(sk)
 
 		assert.Equal(t, expectedSignature, *sig, fmt.Sprintf("failed on line: %d", lineNumber))
 		lineNumber++
