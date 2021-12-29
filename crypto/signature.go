@@ -64,7 +64,8 @@ tryAgain:
 		return nil, fmt.Errorf("unexpected error: %w", err)
 	}
 
-	sig.C = HashToScalar(bufBytes)
+	bufHash := HashFromBytes(bufBytes)
+	sig.C = bufHash.toScalar()
 	if !ed.ScIsNonZero(sig.C) {
 		goto tryAgain
 	}
@@ -107,8 +108,9 @@ func (sig *Signature) Check(hash Hash, publicKey Key) bool {
 	}
 
 	bufBytes, _ := buf.bytes()
-	hashBuf := HashToScalar(bufBytes)
-	c := ed.ScSub(sig.C, hashBuf)
+	bufHash := HashFromBytes(bufBytes)
+
+	c := ed.ScSub(sig.C, bufHash.toScalar())
 	return !ed.ScIsNonZero(c)
 }
 

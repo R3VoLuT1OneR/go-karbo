@@ -30,7 +30,7 @@ func (hash *Hash) String() string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (hash *Hash) ToEc() (*ed.ExtendedGroupElement, error) {
+func (hash *Hash) toEc() (*ed.ExtendedGroupElement, error) {
 	var p ed.ProjectiveGroupElement
 	var p2 ed.CompletedGroupElement
 	var r ed.ExtendedGroupElement
@@ -45,8 +45,8 @@ func (hash *Hash) ToEc() (*ed.ExtendedGroupElement, error) {
 	return &r, nil
 }
 
-func (hash *Hash) ToPoint() (*EllipticCurvePoint, error) {
-	r, err := hash.ToEc()
+func (hash *Hash) toPoint() (*EllipticCurvePoint, error) {
+	r, err := hash.toEc()
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +54,10 @@ func (hash *Hash) ToPoint() (*EllipticCurvePoint, error) {
 	ecPoint := EllipticCurvePoint(r.ToBytes())
 
 	return &ecPoint, nil
+}
+
+func (hash *Hash) toScalar() EllipticCurveScalar {
+	return ed.ScReduce32(*hash)
 }
 
 func HashFromBytes(b []byte) Hash {

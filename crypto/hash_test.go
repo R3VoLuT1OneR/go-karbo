@@ -31,7 +31,7 @@ func TestHash_ToEc(t *testing.T) {
 		copy(expected[:], expectedBytes[:32])
 
 		hash := HashFromBytes(pkBytes)
-		actual, actualErr := hash.ToPoint()
+		actual, actualErr := hash.toPoint()
 
 		assert.Nil(t, actualErr, fmt.Sprintf("failed at line: %d", lineNumber))
 		assert.Equal(t, expected, *actual, fmt.Sprintf("failed at line: %d", lineNumber))

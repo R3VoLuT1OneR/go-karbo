@@ -19,13 +19,6 @@ type KeyDerivation EllipticCurvePoint
 
 type KeyImage EllipticCurvePoint
 
-func HashToScalar(b []byte) EllipticCurveScalar {
-	hashed := Keccak(b)
-	var ba [32]byte
-	copy(ba[:], hashed[:])
-	return ed.ScReduce32(ba)
-}
-
 func RandomScalar() EllipticCurveScalar {
 	var randomBytes [64]byte
 
@@ -57,19 +50,40 @@ func GenerateKeyDerivation(publicKey PublicKey, secretKey SecretKey) (*KeyDeriva
 	return &b, nil
 }
 
-func GenerateKeyImage(publicKey PublicKey, secretKey SecretKey) (*KeyImage, error) {
-	if !ed.ScCheck(secretKey) {
+func GenerateKeyImage(publicKey *PublicKey, secretKey *SecretKey) (*KeyImage, error) {
+	if !ed.ScCheck(*secretKey) {
 		return nil, errors.New("wrong secret key provided")
 	}
 
 	pkHash := HashFromBytes(publicKey[:])
-	point, err := pkHash.ToEc()
+	point, err := pkHash.toEc()
 	if err != nil {
 		return nil, err
 	}
 
-	point2 := ed.GeScalarMult((*[32]byte)(&secretKey), point)
+	point2 := ed.GeScalarMult((*[32]byte)(secretKey), point)
 	keyImage := KeyImage(point2.ToBytes())
 
 	return &keyImage, nil
 }
+
+//func DerivePublicKey(derivation *KeyDerivation, outputIndex int, base *PublicKey) (*PublicKey, error) {
+//	point1, err := ed.GeFromBytes((*[32]byte)(base))
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//}
+//
+//func (derivation *KeyDerivation) toScalar(outputIndex int) (EllipticCurveScalar, error) {
+//	//var sizeOfInt = (int)(*(*uint)(unsafe.Sizeof(outputIndex)))
+//	type bufType struct {
+//		derivation  KeyDerivation
+//		outputIndex []byte
+//	}
+//
+//	buf := bufType{
+//		derivation: *derivation,
+//	}
+//
+//}

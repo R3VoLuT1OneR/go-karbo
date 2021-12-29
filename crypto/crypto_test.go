@@ -30,7 +30,8 @@ func TestHashToScalar(t *testing.T) {
 		var expected EllipticCurveScalar
 		copy(expected[:], expectedBytes[:32])
 
-		actual := HashToScalar(dataBytes)
+		actualHash := HashFromBytes(dataBytes)
+		actual := actualHash.toScalar()
 
 		assert.Equal(t, expected, actual, fmt.Sprintf("failed at line: %d", lineNumber))
 
@@ -68,7 +69,7 @@ func TestGenerateKeyImage(t *testing.T) {
 		var expected KeyImage
 		copy(expected[:], expectedBytes[:32])
 
-		actual, actualErr := GenerateKeyImage(publicKey, privateKey)
+		actual, actualErr := GenerateKeyImage(&publicKey, &privateKey)
 
 		assert.Nil(t, actualErr, fmt.Sprintf("failed at line: %d", lineNumber))
 		assert.Equal(t, expected, *actual, fmt.Sprintf("failed at line: %d", lineNumber))
