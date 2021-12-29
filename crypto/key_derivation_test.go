@@ -99,3 +99,43 @@ func TestDerivePublicKey(t *testing.T) {
 
 	assert.Equal(t, 288, times)
 }
+
+func TestDeriveSecretKey(t *testing.T) {
+	file, err := os.Open("./fixtures/derive_secret_key.txt")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	times := 0
+	lineNumber := 1
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		line := strings.Fields(scanner.Text())
+
+		derivationBytes, _ := hex.DecodeString(line[0])
+		outputIndex, _ := strconv.ParseUint(line[1], 0, 64)
+		baseBytes, _ := hex.DecodeString(line[2])
+		expectedBytes, _ := hex.DecodeString(line[3])
+
+		var derivation KeyDerivation
+		copy(derivation[:], derivationBytes)
+
+		var base PublicKey
+		copy(base[:], baseBytes)
+
+		var expected SecretKey
+		copy(expected[:], expectedBytes[:])
+
+		actual, actualErr := derivation.toSecretKey(outputIndex, &base)
+
+		assert.Nil(t, actualErr, fmt.Sprintf("failed at line: %d", lineNumber))
+		assert.Equal(t, expected, *actual, fmt.Sprintf("failed at line: %d", lineNumber))
+
+		lineNumber++
+		times++
+	}
+
+	assert.Equal(t, 256, times)
+}

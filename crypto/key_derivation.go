@@ -52,6 +52,17 @@ func (derivation *KeyDerivation) toPublicKey(outputIndex uint64, base *PublicKey
 	return &publicKey, err
 }
 
+func (derivation *KeyDerivation) toSecretKey(outputIndex uint64, base *PublicKey) (*SecretKey, error) {
+	if !ed.ScCheck(*base) {
+		return nil, errors.New("base is wrong public key")
+	}
+
+	scalar := derivation.toScalar(outputIndex)
+	secretKey := SecretKey(ed.ScAdd((*[32]byte)(base), (*[32]byte)(&scalar)))
+
+	return &secretKey, nil
+}
+
 func (derivation *KeyDerivation) toScalar(outputIndex uint64) EllipticCurveScalar {
 	var b bytes.Buffer
 
