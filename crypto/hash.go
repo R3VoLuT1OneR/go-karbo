@@ -12,21 +12,21 @@ type Hash [HashLength]byte
 
 type HashList []Hash
 
-func (h *Hash) FromBytes(b []byte) {
+func (hash *Hash) FromBytes(b []byte) {
 	hashed := Keccak(b)
-	copy(h[:HashLength], hashed[:HashLength])
+	copy(hash[:HashLength], hashed[:HashLength])
 }
 
-func (h *Hash) Read(r *bytes.Reader) error {
-	if err := binary.Read(r, binary.LittleEndian, h); err != nil {
+func (hash *Hash) Read(r *bytes.Reader) error {
+	if err := binary.Read(r, binary.LittleEndian, hash); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (h *Hash) String() string {
-	return hex.EncodeToString(h[:])
+func (hash *Hash) String() string {
+	return hex.EncodeToString(hash[:])
 }
 
 func HashFromBytes(b []byte) Hash {

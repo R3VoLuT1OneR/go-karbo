@@ -14,8 +14,6 @@ const (
 	TxTagMultisignature      = 0x3
 )
 
-type KeyImage crypto.EllipticCurvePoint
-
 type TransactionSignatures [][]crypto.Signature
 
 type InputCoinbase struct {
@@ -29,7 +27,7 @@ func (i InputCoinbase) sigCount() int {
 type InputKey struct {
 	Amount        uint64
 	OutputIndexes []uint32
-	KeyImage
+	crypto.KeyImage
 }
 
 func (i InputKey) sigCount() int {
@@ -239,7 +237,7 @@ func (tp *TransactionPrefix) deserialize(br *bytes.Reader) error {
 			tp.Inputs[inputIndex] = InputCoinbase{uint32(blockIndex)}
 		case TxTagKey:
 			var OutputIndexes []uint32
-			var Key KeyImage
+			var Key crypto.KeyImage
 
 			amount, err := binary.ReadUvarint(br)
 			if err != nil {
