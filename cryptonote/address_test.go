@@ -1,6 +1,7 @@
 package cryptonote
 
 import (
+	"encoding/hex"
 	"github.com/r3volut1oner/go-karbo/crypto"
 	"testing"
 
@@ -25,21 +26,29 @@ func TestAddressFromString(t *testing.T) {
 
 		assert.Nil(t, err)
 		assert.Equal(t, td.address, address.Base58)
-		assert.Equal(t, td.publicSpendKey, address.SpendPublicKey.Hex())
-		assert.Equal(t, td.publicViewKey, address.ViewPublicKey.Hex())
+		assert.Equal(t, td.publicSpendKey, hex.EncodeToString(address.SpendPublicKey[:]))
+		assert.Equal(t, td.publicViewKey, hex.EncodeToString(address.ViewPublicKey[:]))
 		assert.Equal(t, uint64(111), address.Tag)
 	}
 }
 
 func TestAddressGenerate(t *testing.T) {
 	for _, td := range testAddressCompilation {
-		publicSpendKey, _ := crypto.KeyFromHex(td.publicSpendKey)
-		publicViewKey, _ := crypto.KeyFromHex(td.publicViewKey)
+
+		publicSpendKeyBytes, _ := hex.DecodeString(td.publicSpendKey)
+		publicViewKeyBytes, _ := hex.DecodeString(td.publicViewKey)
+
+		var publicSpendKey crypto.PublicKey
+		copy(publicSpendKey[:], publicSpendKeyBytes[:])
+
+		var publicViewKey crypto.PublicKey
+		copy(publicViewKey[:], publicViewKeyBytes[:])
+
 		address := Generate(uint64(111), publicSpendKey, publicViewKey)
 
 		assert.Equal(t, td.address, address.Base58)
-		assert.Equal(t, td.publicSpendKey, address.SpendPublicKey.Hex())
-		assert.Equal(t, td.publicViewKey, address.ViewPublicKey.Hex())
+		assert.Equal(t, td.publicSpendKey, hex.EncodeToString(address.SpendPublicKey[:]))
+		assert.Equal(t, td.publicViewKey, hex.EncodeToString(address.ViewPublicKey[:]))
 		assert.Equal(t, uint64(111), address.Tag)
 	}
 }

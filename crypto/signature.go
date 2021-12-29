@@ -34,20 +34,19 @@ func (s *sComm) bytes() ([]byte, error) {
 }
 
 // Sign the hash with the private key.
-func (hash Hash) Sign(secretKey Key) (*Signature, error) {
+func (hash Hash) Sign(secretKey *SecretKey) (*Signature, error) {
 	sig := Signature{}
 
 	var tmp3 ed.ExtendedGroupElement
 	var buf sComm
 
-	// Check that provided public key belongs to secret key
-	publicKey, err := PublicFromPrivate(secretKey)
+	publicKey, err := PublicFromSecret(secretKey)
 	if err != nil {
 		return nil, fmt.Errorf("can't get public from private: %w", err)
 	}
 
 	buf.hash = hash
-	buf.key = publicKey.Bytes()
+	buf.key = EllipticCurvePoint(*publicKey)
 
 tryAgain:
 	k := RandomScalar()
@@ -70,7 +69,7 @@ tryAgain:
 		goto tryAgain
 	}
 
-	sig.R = ed.ScMulSub(sig.C, secretKey.Bytes(), k)
+	sig.R = ed.ScMulSub(sig.C, *secretKey, k)
 	if !ed.ScIsNonZero(sig.R) {
 		goto tryAgain
 	}
@@ -78,20 +77,18 @@ tryAgain:
 	return &sig, nil
 }
 
-func (sig *Signature) Check(hash Hash, publicKey Key) bool {
+func (sig *Signature) Check(hash *Hash, publicKey *PublicKey) bool {
 	if !publicKey.Check() {
 		return false
 	}
 
-	publicKeyBytes := publicKey.Bytes()
-
 	buf := sComm{
-		hash: hash,
-		key:  publicKeyBytes,
+		hash: *hash,
+		key:  EllipticCurvePoint(*publicKey),
 	}
 
 	var tmp3 ed.ExtendedGroupElement
-	if !tmp3.FromBytes(&publicKeyBytes) {
+	if !tmp3.FromBytes((*[32]byte)(publicKey)) {
 		return false
 	}
 

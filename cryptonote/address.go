@@ -8,8 +8,8 @@ import (
 // Address represents cryptonote address
 type Address struct {
 	Tag            uint64
-	SpendPublicKey crypto.Key
-	ViewPublicKey  crypto.Key
+	SpendPublicKey crypto.PublicKey
+	ViewPublicKey  crypto.PublicKey
 	Base58         string
 }
 
@@ -27,29 +27,29 @@ func FromString(s string) (a Address, err error) {
 		return
 	}
 
-	var spendPublicKeyData [32]byte
-	var viewPublicKeyData [32]byte
+	var spendPublicKeyBytes [32]byte
+	var viewPublicKeyBytes [32]byte
 
-	copy(spendPublicKeyData[:], data[:32])
-	copy(viewPublicKeyData[:], data[32:64])
+	copy(spendPublicKeyBytes[:], data[:32])
+	copy(viewPublicKeyBytes[:], data[32:64])
 
 	a.Base58 = s
-	a.SpendPublicKey = crypto.KeyFromArray(spendPublicKeyData)
-	a.ViewPublicKey = crypto.KeyFromArray(viewPublicKeyData)
+	a.SpendPublicKey = spendPublicKeyBytes
+	a.ViewPublicKey = viewPublicKeyBytes
 	a.Tag = tag
 
 	return
 }
 
 // Generate from tag and public keys
-func Generate(tag uint64, sk, vk crypto.Key) (a Address) {
+func Generate(tag uint64, spendPublicKey, viewPublicKey crypto.PublicKey) (a Address) {
 	a.Tag = tag
-	a.SpendPublicKey = sk
-	a.ViewPublicKey = vk
+	a.SpendPublicKey = spendPublicKey
+	a.ViewPublicKey = viewPublicKey
 
 	var b []byte
-	b = append(b, sk.BytesSlice()[:]...)
-	b = append(b, vk.BytesSlice()[:]...)
+	b = append(b, spendPublicKey[:]...)
+	b = append(b, viewPublicKey[:]...)
 
 	a.Base58 = EncodeAddr(tag, b)
 

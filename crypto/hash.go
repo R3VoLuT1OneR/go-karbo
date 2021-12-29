@@ -7,15 +7,13 @@ import (
 	ed "github.com/r3volut1oner/go-karbo/crypto/edwards25519"
 )
 
-const HashLength = 32
-
-type Hash [HashLength]byte
+type Hash [32]byte
 
 type HashList []Hash
 
 func (hash *Hash) FromBytes(b []byte) {
 	hashed := Keccak(b)
-	copy(hash[:HashLength], hashed[:HashLength])
+	copy(hash[:32], hashed[:32])
 }
 
 func (hash *Hash) Read(r *bytes.Reader) error {

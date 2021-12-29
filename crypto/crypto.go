@@ -11,13 +11,15 @@ type EllipticCurvePoint [32]byte
 
 type EllipticCurveScalar [32]byte
 
-type SecretKey EllipticCurveScalar
-
-type PublicKey EllipticCurvePoint
-
 type KeyDerivation EllipticCurvePoint
 
 type KeyImage EllipticCurvePoint
+
+// Check that the point is on curve
+func (p *EllipticCurvePoint) Check() bool {
+	var point ed.ExtendedGroupElement
+	return point.FromBytes((*[32]byte)(p))
+}
 
 func RandomScalar() EllipticCurveScalar {
 	var randomBytes [64]byte

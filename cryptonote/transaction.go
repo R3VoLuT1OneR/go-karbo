@@ -45,11 +45,11 @@ func (i InputMultiSignature) sigCount() int {
 }
 
 type OutputKey struct {
-	crypto.Key
+	crypto.PublicKey
 }
 
 type OutputMultisignature struct {
-	Keys                    []crypto.Key
+	Keys                    []crypto.PublicKey
 	RequiredSignaturesCount byte
 }
 
@@ -181,8 +181,9 @@ func (tp *TransactionPrefix) serialize() []byte {
 
 		switch output.Target.(type) {
 		case OutputKey:
+			outputKey := output.Target.(OutputKey)
 			serialized.WriteByte(TxTagKey)
-			serialized.Write(output.Target.(OutputKey).BytesSlice())
+			serialized.Write(outputKey.PublicKey[:])
 		default:
 		}
 	}
@@ -304,7 +305,7 @@ func (tp *TransactionPrefix) deserialize(br *bytes.Reader) error {
 
 			tp.Outputs[outputIndex] = TransactionOutput{
 				Amount: amount,
-				Target: OutputKey{crypto.KeyFromArray(keyBytes)},
+				Target: OutputKey{keyBytes},
 			}
 		case TxTagMultisignature:
 			// TODO: Implement multisig

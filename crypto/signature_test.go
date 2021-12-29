@@ -25,14 +25,14 @@ func (r *testReader) Read(b []byte) (int, error) {
 
 func TestSignatureGenerateAndThenCheck(t *testing.T) {
 	hashKey, _ := GenerateKey()
-	hash := HashFromBytes(hashKey.BytesSlice())
+	hash := HashFromBytes(hashKey[:])
 
 	secretKey, _ := GenerateKey()
-	publicKey, _ := PublicFromPrivate(secretKey)
+	publicKey, _ := PublicFromSecret(&secretKey)
 
-	sig, _ := hash.Sign(secretKey)
+	sig, _ := hash.Sign(&secretKey)
 
-	assert.True(t, sig.Check(hash, publicKey))
+	assert.True(t, sig.Check(&hash, publicKey))
 }
 
 func TestGenerateSignature(t *testing.T) {
@@ -58,17 +58,19 @@ func TestGenerateSignature(t *testing.T) {
 		assert.Equal(t, 3, len(line))
 
 		hashBytes, _ := hex.DecodeString(line[0])
-		skBytes, _ := hex.DecodeString(line[1])
+		secretKeyBytes, _ := hex.DecodeString(line[1])
 		sigBytes, _ := hex.DecodeString(line[2])
 
 		var hash Hash
 		copy(hash[:], hashBytes)
-		sk, _ := KeyFromBytes(skBytes)
+
+		var secretKey SecretKey
+		copy(secretKey[:], secretKeyBytes)
 
 		var expectedSignature Signature
 		_ = expectedSignature.Deserialize(bytes.NewReader(sigBytes))
 
-		sig, _ := hash.Sign(sk)
+		sig, _ := hash.Sign(&secretKey)
 
 		assert.Equal(t, expectedSignature, *sig, fmt.Sprintf("failed on line: %d", lineNumber))
 		lineNumber++
@@ -94,19 +96,21 @@ func TestSignature_Check(t *testing.T) {
 		assert.Equal(t, 4, len(line))
 
 		hashBytes, _ := hex.DecodeString(line[0])
-		pkBytes, _ := hex.DecodeString(line[1])
+		publicKeyBytes, _ := hex.DecodeString(line[1])
 		sigBytes, _ := hex.DecodeString(line[2])
 		expected, _ := strconv.ParseBool(line[3])
 
 		var hash Hash
 		copy(hash[:], hashBytes)
-		pk, _ := KeyFromBytes(pkBytes)
+
+		var publicKey PublicKey
+		copy(publicKey[:], publicKeyBytes[:])
 
 		var sig Signature
 		_ = sig.Deserialize(bytes.NewReader(sigBytes))
 
 		if lineNumber == 4 {
-			assert.Equal(t, expected, sig.Check(hash, pk), fmt.Sprintf("failed at line: %d", lineNumber))
+			assert.Equal(t, expected, sig.Check(&hash, &publicKey), fmt.Sprintf("failed at line: %d", lineNumber))
 		}
 
 		lineNumber++

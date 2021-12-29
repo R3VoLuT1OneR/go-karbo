@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
 	"github.com/r3volut1oner/go-karbo/crypto"
 	"unsafe"
@@ -350,7 +351,7 @@ func (pb *ParentBlock) deserialize(r *bytes.Reader) error {
 
 	tef, err := baseTx.ParseExtra()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse extra: %w", err)
 	}
 
 	if tef.MiningTag == nil {

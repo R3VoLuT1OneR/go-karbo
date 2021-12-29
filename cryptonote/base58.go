@@ -1,4 +1,4 @@
-// Package base58 is implementation of CryptoNote Base58.
+// Package cryptonote Package base58 is implementation of CryptoNote Base58.
 //
 // CryptoNote Base58 is a binary-to-text encoding scheme used to
 // represent arbitrary binary data as a sequence of alphanumeric

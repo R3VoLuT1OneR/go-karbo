@@ -105,8 +105,8 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 
 	if b.MajorVersion >= config.BlockMajorVersion5 {
 		sigHash := crypto.HashFromBytes(b.HashingBytes())
-		ephPubKey := b.CoinbaseTransaction.Outputs[0].Target.(OutputKey)
-		if !b.Signature.Check(sigHash, ephPubKey) {
+		outputKey := b.CoinbaseTransaction.Outputs[0].Target.(OutputKey)
+		if !b.Signature.Check(&sigHash, &outputKey.PublicKey) {
 			err := ErrBlockValidationBlockSignatureMismatch
 			blogger.Error(err)
 			return err
@@ -273,7 +273,8 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) error {
 
 		switch output.Target.(type) {
 		case OutputKey:
-			if !output.Target.(OutputKey).Check() {
+			outputKey := output.Target.(OutputKey)
+			if !outputKey.Check() {
 				err := ErrTransactionOutputInvalidKey
 				ologger.Error(err)
 				return err
