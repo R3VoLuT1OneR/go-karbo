@@ -73,29 +73,3 @@ func GenerateKeyImage(publicKey PublicKey, secretKey SecretKey) (*KeyImage, erro
 
 	return &keyImage, nil
 }
-
-func (hash *Hash) ToEc() (*ed.ExtendedGroupElement, error) {
-	var p ed.ProjectiveGroupElement
-	var p2 ed.CompletedGroupElement
-	var r ed.ExtendedGroupElement
-
-	if err := p.FromBytes((*[32]byte)(hash)); err != nil {
-		return nil, err
-	}
-
-	ed.GeMul8(&p2, &p)
-	p2.ToExtended(&r)
-
-	return &r, nil
-}
-
-func (hash *Hash) ToPoint() (*EllipticCurvePoint, error) {
-	r, err := hash.ToEc()
-	if err != nil {
-		return nil, err
-	}
-
-	ecPoint := EllipticCurvePoint(r.ToBytes())
-
-	return &ecPoint, nil
-}
