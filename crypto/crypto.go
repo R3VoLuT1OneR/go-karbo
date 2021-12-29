@@ -62,7 +62,16 @@ func GenerateKeyImage(publicKey PublicKey, secretKey SecretKey) (*KeyImage, erro
 		return nil, errors.New("wrong secret key provided")
 	}
 
-	return nil, nil
+	pkHash := HashFromBytes(publicKey[:])
+	point, err := pkHash.ToEc()
+	if err != nil {
+		return nil, err
+	}
+
+	point2 := ed.GeScalarMult((*[32]byte)(&secretKey), point)
+	keyImage := KeyImage(point2.ToBytes())
+
+	return &keyImage, nil
 }
 
 func (hash *Hash) ToEc() (*ed.ExtendedGroupElement, error) {
@@ -86,7 +95,7 @@ func (hash *Hash) ToPoint() (*EllipticCurvePoint, error) {
 		return nil, err
 	}
 
-	b := EllipticCurvePoint(r.ToBytes())
+	ecPoint := EllipticCurvePoint(r.ToBytes())
 
-	return &b, nil
+	return &ecPoint, nil
 }
