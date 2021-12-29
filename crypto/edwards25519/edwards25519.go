@@ -983,7 +983,7 @@ func (p *CachedGroupElement) CMove(u *CachedGroupElement, b int32) {
 	FeCMove(&p.T2d, &u.T2d, b)
 }
 
-func geAdd(r *CompletedGroupElement, p *ExtendedGroupElement, q *CachedGroupElement) {
+func GeAdd(r *CompletedGroupElement, p *ExtendedGroupElement, q *CachedGroupElement) {
 	var t0 FieldElement
 
 	FeAdd(&r.X, &p.Y, &p.X)
@@ -1103,7 +1103,7 @@ func GeDoubleScalarMultVartime(r *ProjectiveGroupElement, a *[32]byte, A *Extend
 	t.ToExtended(&A2)
 
 	for i := 0; i < 7; i++ {
-		geAdd(&t, &A2, &Ai[i])
+		GeAdd(&t, &A2, &Ai[i])
 		t.ToExtended(&u)
 		u.ToCached(&Ai[i+1])
 	}
@@ -1121,7 +1121,7 @@ func GeDoubleScalarMultVartime(r *ProjectiveGroupElement, a *[32]byte, A *Extend
 
 		if aSlide[i] > 0 {
 			t.ToExtended(&u)
-			geAdd(&t, &u, &Ai[aSlide[i]/2])
+			GeAdd(&t, &u, &Ai[aSlide[i]/2])
 		} else if aSlide[i] < 0 {
 			t.ToExtended(&u)
 			geSub(&t, &u, &Ai[(-aSlide[i])/2])
@@ -1248,7 +1248,7 @@ func GeScalarMult(a *[32]byte, A *ExtendedGroupElement) (r ProjectiveGroupElemen
 
 	A.ToCached(&Ai[0])
 	for i := 0; i < 7; i++ {
-		geAdd(&t, A, &Ai[i])
+		GeAdd(&t, A, &Ai[i])
 		t.ToExtended(&u)
 		u.ToCached(&Ai[i+1])
 	}
@@ -1286,7 +1286,7 @@ func GeScalarMult(a *[32]byte, A *ExtendedGroupElement) (r ProjectiveGroupElemen
 		FeNeg(&minuscur.T2d, &cur.T2d)
 
 		cur.CMove(&minuscur, int32(bnegative))
-		geAdd(&t, &u, &cur)
+		GeAdd(&t, &u, &cur)
 		t.ToProjective(&r)
 	}
 
