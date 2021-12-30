@@ -4,7 +4,7 @@ import (
 	"errors"
 	ed "github.com/r3volut1oner/go-karbo/crypto/edwards25519"
 )
-
+secIndex
 type SecretKey EllipticCurveScalar
 
 type PublicKey EllipticCurvePoint
@@ -27,7 +27,7 @@ func PublicFromSecret(secretKey *SecretKey) (*PublicKey, error) {
 	}
 
 	var point ed.ExtendedGroupElement
-	ed.GeScalarMultBase(&point, *secretKey)
+	ed.GeScalarMultBase(&point, secretKey)
 
 	pk := PublicKey(point.ToBytes())
 	return &pk, nil

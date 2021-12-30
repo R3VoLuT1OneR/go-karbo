@@ -999,7 +999,7 @@ func GeAdd(r *CompletedGroupElement, p *ExtendedGroupElement, q *CachedGroupElem
 	FeSub(&r.T, &t0, &r.T)
 }
 
-func geSub(r *CompletedGroupElement, p *ExtendedGroupElement, q *CachedGroupElement) {
+func GeSub(r *CompletedGroupElement, p *ExtendedGroupElement, q *CachedGroupElement) {
 	var t0 FieldElement
 
 	FeAdd(&r.X, &p.Y, &p.X)
@@ -1075,6 +1075,23 @@ func slide(r *[256]int8, a *[32]byte) {
 	}
 }
 
+func GeDSMPreComp(s *ExtendedGroupElement) (r [8]CachedGroupElement) {
+	var t CompletedGroupElement
+	var s2, u ExtendedGroupElement
+
+	s.ToCached(&r[0])
+	s.Double(&t)
+	t.ToExtended(&s2)
+
+	for i := 0; i < 7; i++ {
+		GeAdd(&t, &s2, &r[i])
+		t.ToExtended(&u)
+		u.ToCached(&r[i+1])
+	}
+
+	return r
+}
+
 func GeMul8(r *CompletedGroupElement, t *ProjectiveGroupElement) {
 	var u ProjectiveGroupElement
 	t.Double(r)
@@ -1084,11 +1101,11 @@ func GeMul8(r *CompletedGroupElement, t *ProjectiveGroupElement) {
 	u.Double(r)
 }
 
-// GeDoubleScalarMultVartime sets r = a*A + b*B
+// GeDoubleScalarMultBaseVartime sets r = a*A + b*B
 // where a = a[0]+256*a[1]+...+256^31 a[31].
 // and b = b[0]+256*b[1]+...+256^31 b[31].
 // B is the Ed25519 base point (x,4/5) with x positive.
-func GeDoubleScalarMultVartime(r *ProjectiveGroupElement, a *[32]byte, A *ExtendedGroupElement, b *[32]byte) {
+func GeDoubleScalarMultBaseVartime(r *ProjectiveGroupElement, a *[32]byte, A *ExtendedGroupElement, b *[32]byte) {
 	var aSlide, bSlide [256]int8
 	var Ai [8]CachedGroupElement // A,3A,5A,7A,9A,11A,13A,15A
 	var t CompletedGroupElement
@@ -1124,7 +1141,7 @@ func GeDoubleScalarMultVartime(r *ProjectiveGroupElement, a *[32]byte, A *Extend
 			GeAdd(&t, &u, &Ai[aSlide[i]/2])
 		} else if aSlide[i] < 0 {
 			t.ToExtended(&u)
-			geSub(&t, &u, &Ai[(-aSlide[i])/2])
+			GeSub(&t, &u, &Ai[(-aSlide[i])/2])
 		}
 
 		if bSlide[i] > 0 {
@@ -1133,6 +1150,48 @@ func GeDoubleScalarMultVartime(r *ProjectiveGroupElement, a *[32]byte, A *Extend
 		} else if bSlide[i] < 0 {
 			t.ToExtended(&u)
 			geMixedSub(&t, &u, &bi[(-bSlide[i])/2])
+		}
+
+		t.ToProjective(r)
+	}
+}
+
+func GeDoubleScalarMultPrecompVartime(r *ProjectiveGroupElement, a *[32]byte, A *ExtendedGroupElement, b *[32]byte, Bi [8]CachedGroupElement) {
+	var aSlide, bSlide [256]int8
+	var t CompletedGroupElement
+	var u ExtendedGroupElement
+	var i int
+
+	slide(&aSlide, a)
+	slide(&bSlide, b)
+
+	Ai := GeDSMPreComp(A)
+
+	r.Zero()
+
+	for i = 255; i >= 0; i-- {
+		if aSlide[i] != 0 || bSlide[i] != 0 {
+			break
+		}
+	}
+
+	for ; i >= 0; i-- {
+		r.Double(&t)
+
+		if aSlide[i] > 0 {
+			t.ToExtended(&u)
+			GeAdd(&t, &u, &Ai[aSlide[i]/2])
+		} else if aSlide[i] < 0 {
+			t.ToExtended(&u)
+			GeSub(&t, &u, &Ai[(-aSlide[i])/2])
+		}
+
+		if bSlide[i] > 0 {
+			t.ToExtended(&u)
+			GeAdd(&t, &u, &Bi[bSlide[i]/2])
+		} else if bSlide[i] < 0 {
+			t.ToExtended(&u)
+			GeSub(&t, &u, &Bi[(-bSlide[i])/2])
 		}
 
 		t.ToProjective(r)
@@ -1179,7 +1238,7 @@ func selectPoint(t *PreComputedGroupElement, pos int32, b int32) {
 //
 // Preconditions:
 //   a[31] <= 127
-func GeScalarMultBase(h *ExtendedGroupElement, a [32]byte) {
+func GeScalarMultBase(h *ExtendedGroupElement, a *[32]byte) {
 	var e [64]int8
 
 	for i, v := range a {

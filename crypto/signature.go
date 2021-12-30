@@ -3,6 +3,7 @@ package crypto
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	ed "github.com/r3volut1oner/go-karbo/crypto/edwards25519"
 )
@@ -56,7 +57,7 @@ tryAgain:
 		goto tryAgain
 	}
 
-	ed.GeScalarMultBase(&tmp3, k)
+	ed.GeScalarMultBase(&tmp3, (*[32]byte)(&k))
 	buf.comm = tmp3.ToBytes()
 	bufBytes, err := buf.bytes()
 	if err != nil {
@@ -97,7 +98,7 @@ func (sig *Signature) Check(hash *Hash, publicKey *PublicKey) bool {
 	}
 
 	var tmp2 ed.ProjectiveGroupElement
-	ed.GeDoubleScalarMultVartime(&tmp2, sig.C.bytesPointer(), &tmp3, sig.R.bytesPointer())
+	ed.GeDoubleScalarMultBaseVartime(&tmp2, sig.C.bytesPointer(), &tmp3, sig.R.bytesPointer())
 	buf.comm = tmp2.ToBytes()
 
 	if bytes.Compare(buf.comm[:], infinityPoint[:]) == 0 {
@@ -127,6 +128,139 @@ func (sig *Signature) Serialize() ([]byte, error) {
 	}
 
 	return serialized.Bytes(), nil
+}
+
+func GenerateRingSignature(prefixHash Hash, image *KeyImage, pubs *[]PublicKey, sec *SecretKey, secIndex uint64) ([]Signature, error) {
+	var sigs []Signature
+
+	if !(secIndex < uint64(len(*pubs))) {
+		return nil, errors.New("assertion failed: wrong secIndex provided")
+	}
+
+	// -------- ENABLED IN DEBUG MODE --------
+	if !ed.ScCheck(*sec) {
+		return nil, errors.New("wrong secret key provided")
+	}
+
+	var t ed.ExtendedGroupElement
+	ed.GeScalarMultBase(&t, (*[32]byte)(sec))
+
+	t2 := PublicKey(t.ToBytes())
+
+	secIndexPub := (*pubs)[secIndex]
+	if secIndexPub != t2 {
+		return nil, errors.New("assertion failed: sec index pub key not match")
+	}
+
+	t3, err := GenerateKeyImage(&secIndexPub, sec)
+	if err != nil {
+		return nil, err
+	}
+
+	if image != t3 {
+		return nil, errors.New("assertion failed: wrong image provided")
+	}
+
+	for i := 0; i < len(*pubs); i++ {
+		if !(*pubs)[i].Check() {
+			return nil, errors.New(fmt.Sprintf("wrong public key at index %d", i))
+		}
+	}
+	// -------- ENABLED IN DEBUG MODE --------
+
+	imageUnp, err := ed.GeFromBytes((*[32]byte)(image))
+	if err != nil {
+		return nil, err
+	}
+
+	imagePre := ed.GeDSMPreComp(imageUnp)
+	sum := [32]byte{
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+	}
+
+	k := RandomScalar()
+	bufSigs := make([]Signature, len(*pubs))
+	for i := 0; i < len(bufSigs); i++ {
+		var tmp2 *ed.ProjectiveGroupElement
+		var tmp3 *ed.ExtendedGroupElement
+
+		if uint64(i) == secIndex {
+			ed.GeScalarMultBase(tmp3, (*[32]byte)(&k))
+			bufSigs[i].C = tmp3.ToBytes()
+
+			pubHash := HashFromBytes(((*pubs)[i])[:])
+			tmp3, err := pubHash.toEc()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get EC from pub hash at %d: %w", i, err)
+			}
+			*tmp2 = ed.GeScalarMult((*[32]byte)(&k), tmp3)
+			bufSigs[i].R = tmp2.ToBytes()
+			continue
+		}
+
+		sigs[i].C = RandomScalar()
+		sigs[i].R = RandomScalar()
+
+		tmp3, err := ed.GeFromBytes((*[32]byte)(&(*pubs)[i]))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get tmp3 from bytes at %d: %w", i, err)
+		}
+
+		ed.GeDoubleScalarMultBaseVartime(tmp2, (*[32]byte)(&sigs[i].C), tmp3, (*[32]byte)(&sigs[i].R))
+		bufSigs[i].C = tmp2.ToBytes()
+
+		pubHash := HashFromBytes(((*pubs)[i])[:])
+		tmp3, err = pubHash.toEc()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get EC from pub hash at %d: %w", i, err)
+		}
+
+		ed.GeDoubleScalarMultPrecompVartime(tmp2, (*[32]byte)(&sigs[i].R), tmp3, (*[32]byte)(&sigs[i].C), imagePre)
+		bufSigs[i].R = tmp2.ToBytes()
+
+		sum = ed.ScAdd(&sum, (*[32]byte)(&sigs[i].C))
+	}
+
+	// Serialize prefix hash and new generated signatures
+	var buf bytes.Buffer
+	buf.Write(prefixHash[:])
+	for i, signature := range bufSigs {
+		sigBytes, err := signature.Serialize()
+		if err != nil {
+			return nil, fmt.Errorf("failed to serialize signature at %d: %w", i, err)
+		}
+
+		buf.Write(sigBytes)
+	}
+
+	bufHash := HashFromBytes(buf.Bytes())
+	h := bufHash.toScalar()
+
+	sigs[secIndex].C = ed.ScSub(h, sum)
+	sigs[secIndex].R = ed.ScMulSub(sigs[secIndex].C, *sec, k)
+
+	return sigs, nil
+}
+
+func CheckRingSignature(prefixHash *Hash, image *KeyImage, pubs *[]PublicKey, sigs *[]Signature, checkKeyImage bool) bool {
+	// -------- ENABLED IN DEBUG MODE --------
+	for i := 0; i < len(*pubs); i++ {
+		if !(*pubs)[i].Check() {
+			return false
+		}
+	}
+	// -------- ENABLED IN DEBUG MODE --------
+
+	imageUnp, err := ed.GeFromBytes((*[32]byte)(image))
+	if err != nil {
+		return false
+	}
+
+	imagePre := ed.GeDSMPreComp(imageUnp)
+
 }
 
 func (e EllipticCurveScalar) bytesPointer() *[32]byte {

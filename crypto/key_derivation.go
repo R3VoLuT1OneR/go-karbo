@@ -36,8 +36,10 @@ func (derivation *KeyDerivation) toPublicKey(outputIndex uint64, base *PublicKey
 		return nil, err
 	}
 
+	scalar := derivation.toScalar(outputIndex)
+
 	var point2 ed.ExtendedGroupElement
-	ed.GeScalarMultBase(&point2, derivation.toScalar(outputIndex))
+	ed.GeScalarMultBase(&point2, (*[32]byte)(&scalar))
 
 	var point3 ed.CachedGroupElement
 	point2.ToCached(&point3)
