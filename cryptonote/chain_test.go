@@ -12,7 +12,7 @@ func TestBlockChain_NewBlockChain(t *testing.T) {
 	network := config.TestNet()
 	logger := logrus.New()
 
-	bc := NewBlockChain(network, logger)
+	bc := NewBlockChain(network, nil, logger)
 
 	assert.IsType(t, &BlockChain{}, bc)
 	assert.Equal(t, network, bc.Network)
@@ -29,7 +29,7 @@ func TestBlockChain_GenesisBlock(t *testing.T) {
 		0x44, 0x90, 0x56, 0xa4, 0xea, 0xe, 0xfe, 0xa4,
 	}
 
-	bc := NewBlockChain(net, logger)
+	bc := NewBlockChain(net, nil, logger)
 	block, err := bc.GenesisBlock()
 
 	// TODO: Add tests for genesis block

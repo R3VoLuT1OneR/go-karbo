@@ -4,6 +4,7 @@ import "errors"
 
 var (
 	ErrAddBlockAlreadyExists              = errors.New("block already exists")
+	ErrAddBlockPrevBlockIndexMismatch     = errors.New("block index and prev block index don't match")
 	ErrAddBlockTransactionCountNotMatch   = errors.New("transaction sizes not match")
 	ErrAddBlockTransactionSizeMax         = errors.New("transaction size bigger than allowed")
 	ErrAddBlockTransactionCoinbaseMaxSize = errors.New("coinbase transaction size bigger than allowed")

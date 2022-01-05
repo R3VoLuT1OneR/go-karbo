@@ -8,17 +8,17 @@ import (
 
 // difficultyForNextBlock calculates difficulty for the next block.
 func (bc *BlockChain) difficultyForNextBlock(b *Block) (uint64, error) {
-	if b.Height() > bc.bestTip.Height() {
-		return 0, errors.New(fmt.Sprintf("unknown block index %d, top index is %d", b.Height(), bc.bestTip.Height()))
+	if b.Index() > bc.bestTip.Index() {
+		return 0, errors.New(fmt.Sprintf("unknown block index %d, top index is %d", b.Index(), bc.bestTip.Index()))
 	}
 
-	nextBlockMajorVersion := bc.Network.GetBlockMajorVersionForHeight(b.Height())
+	nextBlockMajorVersion := bc.Network.GetBlockMajorVersionForHeight(b.Index())
 	difficultyBlocksCount := bc.Network.DifficultyBlocksCountByBlockVersion(nextBlockMajorVersion)
 
 	timestamps := bc.lastBlocksTimestamps(difficultyBlocksCount, b)
 	cumulativeDifficulties := bc.lastBlocksCumulativeDifficulties(difficultyBlocksCount, b)
 
-	return bc.Network.NextDifficulty(b.Height(), nextBlockMajorVersion, timestamps, cumulativeDifficulties)
+	return bc.Network.NextDifficulty(b.Index(), nextBlockMajorVersion, timestamps, cumulativeDifficulties)
 }
 
 // TODO: Implement

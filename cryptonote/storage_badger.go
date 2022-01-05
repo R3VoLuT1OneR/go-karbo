@@ -14,35 +14,6 @@ var (
 	ErrBlockNotFound = errors.New("block not found")
 )
 
-type Store interface {
-	// Init database files with genesis block if empty.
-	Init(bc *BlockChain) error
-
-	// GetBlockHashByHeight provides block by hash
-	GetBlockHashByHeight(uint32) (*crypto.Hash, error)
-
-	// GetBlockIndexByHash returns height for specific block hash
-	GetBlockIndexByHash(*crypto.Hash) (uint32, error)
-
-	// GetBlockByHeight returns block by height
-	GetBlockByHeight(uint32) (*Block, error)
-
-	// AppendBlock to database persistence layer.
-	AppendBlock(*Block) error
-
-	// HasBlock verifies that block is saved in DB
-	HasBlock(*crypto.Hash) (bool, error)
-
-	// TopIndex of current saved blockchain
-	TopIndex() (uint32, error)
-
-	// IsEmpty checks if database is new and empty
-	IsEmpty() (bool, error)
-
-	// Close database connection
-	Close() error
-}
-
 type badgerDB struct {
 	badger *badger.DB
 }
@@ -77,7 +48,7 @@ func keyHeight() []byte {
 	return []byte("block-height")
 }
 
-func NewBadgerDB() (Store, error) {
+func NewBadgerDB() (Storage, error) {
 	db, err := badger.Open(
 		badger.DefaultOptions("./.badger"),
 	)

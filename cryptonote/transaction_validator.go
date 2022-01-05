@@ -13,8 +13,8 @@ type blockTransactionsValidator struct {
 	// bc is the link to blockchain
 	bc *BlockChain
 
-	// blockHeight of the transaction
-	blockHeight uint32
+	// blockIndex of the transaction
+	blockIndex uint32
 
 	// spentKeyImages used for sharing spent key images for block validation
 	spentKeyImages map[crypto.KeyImage]bool
@@ -37,10 +37,10 @@ type MultisigAmountIndexPair struct {
 var LImage = crypto.KeyImage(crypto.L)
 var IImage = crypto.KeyImage(crypto.I)
 
-func NewBlockTransactionsValidator(bc *BlockChain, blockHeight uint32, logger *log.Logger) *blockTransactionsValidator {
+func NewBlockTransactionsValidator(bc *BlockChain, blockIndex uint32, logger *log.Logger) *blockTransactionsValidator {
 	return &blockTransactionsValidator{
 		bc:                               bc,
-		blockHeight:                      blockHeight,
+		blockIndex:                       blockIndex,
 		spentKeyImages:                   map[crypto.KeyImage]bool{},
 		spentMultisignatureGlobalIndexes: map[MultisigAmountIndexPair]bool{},
 		cumulativeFee:                    uint64(0),
@@ -89,7 +89,7 @@ func (validator *blockTransactionsValidator) validate(transaction *Transaction) 
 
 func (validator *blockTransactionsValidator) validateSize(transaction *Transaction) error {
 	size := transaction.Size()
-	maxSize := validator.bc.Network.MaxTransactionSize(validator.blockHeight)
+	maxSize := validator.bc.Network.MaxTransactionSize(validator.blockIndex)
 	logger := validator.logger.WithFields(log.Fields{
 		"transaction_size":     size,
 		"transaction_maz_size": maxSize,
@@ -150,7 +150,7 @@ func (validator *blockTransactionsValidator) validateInputs(transaction *Transac
 			// so first can be zero, others can't.
 			// Fix discovered by Monero Lab and suggested by "fluffypony" (bitcointalk.org).
 			// Skip this expensive validation in checkpoints zone.
-			if !validator.bc.Checkpoints.IsInCheckpointZone(validator.blockHeight + 1) {
+			if !validator.bc.Network.Checkpoints.IsInCheckpointZone(validator.blockIndex + 1) {
 				multiplied, err := input.KeyImage.ScalarMult(&LImage)
 
 				if err != nil || *multiplied != IImage {
@@ -189,7 +189,7 @@ func (validator *blockTransactionsValidator) validateInputs(transaction *Transac
 			validator.spentMultisignatureGlobalIndexes[MOPair] = true
 
 			output, unlockTime, exists :=
-				validator.bc.IsMultiSignatureOutputExists(input.Amount, input.OutputIndex, validator.blockHeight)
+				validator.bc.IsMultiSignatureOutputExists(input.Amount, input.OutputIndex, validator.blockIndex)
 
 			if !exists {
 				err := ErrTransactionInputInvalidGlobalIndex
@@ -197,13 +197,13 @@ func (validator *blockTransactionsValidator) validateInputs(transaction *Transac
 				return 0, err
 			}
 
-			if validator.bc.IsMultiSignatureSpent(input.Amount, input.OutputIndex, validator.blockHeight) {
+			if validator.bc.IsMultiSignatureSpent(input.Amount, input.OutputIndex, validator.blockIndex) {
 				err := ErrTransactionInputMultisignatureAlreadySpent
 				logger.Error(err)
 				return 0, err
 			}
 
-			if !validator.bc.IsTransactionSpendTimeUnlocked(unlockTime, validator.blockHeight) {
+			if !validator.bc.IsTransactionSpendTimeUnlocked(unlockTime, validator.blockIndex) {
 				err := ErrTransactionInputSpendLockedOut
 				logger.Error(err)
 				return 0, err
@@ -246,7 +246,7 @@ func (validator *blockTransactionsValidator) validateOutputs(transaction *Transa
 			return 0, err
 		}
 
-		if validator.blockHeight >= config.UpgradeHeightV5 {
+		if validator.blockIndex >= config.UpgradeHeightV5 {
 			if !validator.bc.Network.IsValidDecomposedAmount(output.Amount) {
 				err := ErrTransactionOutputInvalidDecomposedAmount
 				logger.Error(err)
@@ -326,7 +326,7 @@ func (validator *blockTransactionsValidator) validateTransactionFee(transaction 
 	isFusion = fee == 0 && validator.IsFusionTransaction(transaction)
 
 	if !isFusion {
-		h := validator.blockHeight
+		h := validator.blockIndex
 		minFee := validator.bc.Network.MinimalFeeValidator(h)
 
 		if fee < minFee {
@@ -347,15 +347,15 @@ func (validator *blockTransactionsValidator) validateTransactionFee(transaction 
 }
 
 func (validator *blockTransactionsValidator) validateTransactionExtra(transaction *Transaction, fee uint64, isFusion bool) error {
-	minFee := validator.bc.Network.MinimalFee(validator.blockHeight)
+	minFee := validator.bc.Network.MinimalFee(validator.blockIndex)
 	extraSize := uint64(len(transaction.Extra))
 	feePerByte := validator.bc.Network.GetFeePerByte(extraSize, minFee)
 	minFeeWithExtra := uint64(0)
 	min := minFee + feePerByte
 
-	if validator.blockHeight > config.UpgradeHeightV4s2 && validator.blockHeight < config.UpgradeHeightV4s3 {
+	if validator.blockIndex > config.UpgradeHeightV4s2 && validator.blockIndex < config.UpgradeHeightV4s3 {
 		minFeeWithExtra = min - ((min * 20) / 100)
-	} else if validator.blockHeight >= config.UpgradeHeightV4s3 {
+	} else if validator.blockIndex >= config.UpgradeHeightV4s3 {
 		minFeeWithExtra = min
 	}
 
@@ -379,8 +379,8 @@ func (validator *blockTransactionsValidator) validateTransactionMixin(transactio
 	minMixin := validator.bc.Network.MinMixin()
 	maxMixin := validator.bc.Network.MaxMixin()
 
-	if (validator.blockHeight > config.UpgradeHeightV3s1 && mixin > maxMixin) ||
-		(validator.blockHeight > config.UpgradeHeightV4 && mixin < minMixin && mixin != 1) {
+	if (validator.blockIndex > config.UpgradeHeightV3s1 && mixin > maxMixin) ||
+		(validator.blockIndex > config.UpgradeHeightV4 && mixin < minMixin && mixin != 1) {
 		logger := validator.logger.WithFields(log.Fields{
 			"transaction_mixin":     mixin,
 			"transaction_max_mixin": maxMixin,
@@ -400,7 +400,7 @@ func (validator *blockTransactionsValidator) validateTransactionInputExpensive(t
 	// in a checkpoints range - they are assumed valid, and the transaction
 	// hash would change thus invalidation the checkpoints if not.
 
-	if validator.bc.Checkpoints.IsInCheckpointZone(validator.blockHeight) {
+	if validator.bc.Network.Checkpoints.IsInCheckpointZone(validator.blockIndex) {
 		return nil
 	}
 
@@ -418,7 +418,7 @@ func (validator *blockTransactionsValidator) validateTransactionInputExpensive(t
 				"transaction_input_type": "InputKey",
 			})
 
-			if validator.bc.IsSpent(input.KeyImage, validator.blockHeight) {
+			if validator.bc.IsSpent(input.KeyImage, validator.blockIndex) {
 				err := ErrTransactionInputKeyImageAlreadySpent
 				logger.Error(err)
 				return err
@@ -430,7 +430,7 @@ func (validator *blockTransactionsValidator) validateTransactionInputExpensive(t
 				globalIndexes[i] = globalIndexes[i-1] + input.OutputIndexes[i]
 			}
 
-			outputKeys, err := validator.bc.ExtractKeyOutputKeys(input.Amount, validator.blockHeight, globalIndexes)
+			outputKeys, err := validator.bc.ExtractKeyOutputKeys(input.Amount, validator.blockIndex, globalIndexes)
 
 			// Handle extract key output keys error
 			if err != nil {
@@ -484,9 +484,9 @@ func (validator *blockTransactionsValidator) IsFusionTransaction(transaction *Tr
 	inputsAmounts := getInputsAmounts(transaction)
 	outputsAmounts := getOutputsAmounts(transaction)
 
-	if validator.blockHeight <= config.UpgradeHeightV3 {
+	if validator.blockIndex <= config.UpgradeHeightV3 {
 		size := transaction.Size()
-		maxSize := validator.bc.Network.FusionMaxTxSize(validator.blockHeight)
+		maxSize := validator.bc.Network.FusionMaxTxSize(validator.blockIndex)
 
 		if size > maxSize {
 			logger := validator.logger.WithFields(log.Fields{
@@ -527,7 +527,7 @@ func (validator *blockTransactionsValidator) IsFusionTransaction(transaction *Tr
 
 	inputAmount := uint64(0)
 	for i, amount := range inputsAmounts {
-		if validator.blockHeight < config.UpgradeHeightV4 {
+		if validator.blockIndex < config.UpgradeHeightV4 {
 			dustThreshold := validator.bc.Network.DefaultDustThreshold()
 
 			if amount < dustThreshold {
@@ -547,7 +547,7 @@ func (validator *blockTransactionsValidator) IsFusionTransaction(transaction *Tr
 	}
 
 	dustThreshold := uint64(0)
-	if validator.blockHeight < config.UpgradeHeightV4 {
+	if validator.blockIndex < config.UpgradeHeightV4 {
 		dustThreshold = validator.bc.Network.DefaultDustThreshold()
 	}
 

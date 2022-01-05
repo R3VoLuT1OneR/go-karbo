@@ -13,6 +13,8 @@ import (
 
 // Network represents network params
 type Network struct {
+	Checkpoints Checkpoints
+
 	NetworkID uuid.UUID
 
 	MaxBlockNumber   uint64

@@ -1,4 +1,4 @@
-package cryptonote
+package config
 
 import (
 	"encoding/hex"

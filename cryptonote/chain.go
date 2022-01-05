@@ -12,12 +12,17 @@ import (
 	"sync"
 )
 
+// BlockChain used for all the blockchain manipulations.
+// The storage is responsible for keeping all the blockchain data.
 type BlockChain struct {
 	// Network is current network configurations, must stay immutable
 	Network *config.Network
 
-	// Checkpoints manager of the BC checkpoints
-	Checkpoints Checkpoints
+	// storage used for saving all the blockchain info
+	storage Storage
+
+	// logger for block bc events
+	logger *log.Logger
 
 	// bestTip the higher block in the blockchain
 	bestTip *Block
@@ -25,19 +30,16 @@ type BlockChain struct {
 	// tips higher blockchain tips
 	tips []*Block
 
-	// genesisBlock used for caching genesis block
-	genesisBlock *Block
-
 	blocksIndex map[crypto.Hash]*Block
 
-	// logger for block bc events
-	logger *log.Logger
+	// genesisBlock network genesis block.
+	genesisBlock *Block
 
 	sync.RWMutex
 }
 
 // NewBlockChain generates basic blockchain object
-func NewBlockChain(network *config.Network, logger *log.Logger) *BlockChain {
+func NewBlockChain(network *config.Network, storage Storage, logger *log.Logger) *BlockChain {
 	bc := &BlockChain{
 		Network: network,
 		logger:  logger,
@@ -48,34 +50,51 @@ func NewBlockChain(network *config.Network, logger *log.Logger) *BlockChain {
 	return bc
 }
 
+// Height returns current blockchain height
+func (bc *BlockChain) Height() uint32 {
+	// TODO: Implement
+	return 0
+}
+
 // AddBlock used for adding new blocks to the blockchain.
 //
 // It returns nil if block added successfully and ErrAddBlock* in case of error
-func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
+func (bc *BlockChain) AddBlock(block *Block, rawTransactions [][]byte) error {
 	bc.Lock()
 	defer bc.Unlock()
 
-	hash := b.Hash()
-	height := b.Height()
+	blockHash := block.Hash()
+	blockIndex := block.Index()
 
 	logger := bc.logger.WithFields(log.Fields{
-		"block_hash":   hash,
-		"block_height": height,
+		"block_hash":  blockHash,
+		"block_index": blockIndex,
 	})
 
-	if bc.haveBlock(hash) {
+	if bc.haveBlock(blockHash) {
 		err := ErrAddBlockAlreadyExists
 		logger.Error(err)
 		return err
 	}
 
-	if !bc.haveBlock(&b.PreviousBlockHash) {
+	prevBlock := bc.getBlockByHash(&block.PreviousBlockHash)
+	if prevBlock == nil {
 		err := ErrAddBlockRejectedAsOrphaned
 		logger.Error(err)
 		return err
 	}
 
-	coinbaseTransactionSize := b.BaseTransaction.Size()
+	if blockIndex != prevBlock.Index()+1 {
+		logger.WithFields(log.Fields{
+			"prev_block_index": prevBlock.Index(),
+		})
+
+		err := ErrAddBlockPrevBlockIndexMismatch
+		logger.Error(err)
+		return err
+	}
+
+	coinbaseTransactionSize := block.BaseTransaction.Size()
 	if coinbaseTransactionSize > bc.Network.MaxTxSize {
 		err := ErrAddBlockTransactionCoinbaseMaxSize
 		logger.Error(err)
@@ -87,29 +106,28 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	if len(b.TransactionsHashes) != len(transactions) {
+	if len(block.TransactionsHashes) != len(transactions) {
 		err := ErrAddBlockTransactionCountNotMatch
 		logger.Error(err)
 		return err
 	}
 
-	prevBlock := bc.getBlockByHash(&b.PreviousBlockHash)
 	blockSize := coinbaseTransactionSize + transactionsSize
-	if blockSize > bc.Network.MaxBlockSize(uint64(prevBlock.Height())) {
+	if blockSize > bc.Network.MaxBlockSize(uint64(blockIndex)) {
 		err := ErrBlockValidationCumulativeSizeTooBig
 		logger.Error(err)
 		return err
 	}
 
-	minerReward, err := bc.validateBlock(logger, b)
+	minerReward, err := bc.validateBlock(logger, block, prevBlock)
 	if err != nil {
 		return err
 	}
 
-	if b.MajorVersion >= config.BlockMajorVersion5 {
-		sigHash := crypto.HashFromBytes(b.HashingBytes())
-		outputKey := b.BaseTransaction.Outputs[0].Target.(OutputKey)
-		if !b.Signature.Check(&sigHash, &outputKey.PublicKey) {
+	if block.MajorVersion >= config.BlockMajorVersion5 {
+		sigHash := crypto.HashFromBytes(block.HashingBytes())
+		outputKey := block.BaseTransaction.Outputs[0].Target.(OutputKey)
+		if !block.Signature.Check(&sigHash, &outputKey.PublicKey) {
 			err := ErrBlockValidationBlockSignatureMismatch
 			logger.Error(err)
 			return err
@@ -131,9 +149,9 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 	}
 
 	// Are we going to add the block to the best blockchain
-	addOnTop := bc.bestTip.Height() == prevBlock.Height()
+	addOnTop := bc.bestTip.Index() == prevBlock.Index()
 
-	transactionsValidator := NewBlockTransactionsValidator(bc, b.Height(), logger.Logger)
+	transactionsValidator := NewBlockTransactionsValidator(bc, blockIndex, logger.Logger)
 
 	txAddedHashes := map[crypto.Hash]bool{}
 	for i, transaction := range transactions {
@@ -143,10 +161,10 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		logger := logger.WithFields(log.Fields{
 			"transaction_index": i,
 			"transaction_hash":  txHash.String(),
-			"block_hash":        b.TransactionsHashes[i],
+			"block_hash":        block.TransactionsHashes[i],
 		})
 
-		if *txHash != b.TransactionsHashes[i] {
+		if *txHash != block.TransactionsHashes[i] {
 			err := ErrBlockValidationTransactionInconsistency
 			logger.Error(err)
 			return err
@@ -173,12 +191,12 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		}
 	}
 
-	alreadyGeneratedCoins := bc.getAlreadyGeneratedCoins(prevBlock.Height())
-	lastBlockSizes := bc.GetLastBlocksSizes(prevBlock.Height(), true)
+	alreadyGeneratedCoins := bc.getAlreadyGeneratedCoins(prevBlock.Index())
+	lastBlockSizes := bc.GetLastBlocksSizes(prevBlock.Index(), true)
 	blockSizeMedian := utils.MedianSlice(lastBlockSizes)
 
 	expectedReward, emissionChange, err := bc.Network.GetBlockReward(
-		b.MajorVersion, blockSizeMedian, blockSize, alreadyGeneratedCoins, transactionsValidator.cumulativeFee,
+		block.MajorVersion, blockSizeMedian, blockSize, alreadyGeneratedCoins, transactionsValidator.cumulativeFee,
 	)
 
 	if err != nil {
@@ -198,14 +216,14 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	if bc.Checkpoints.IsInCheckpointZone(b.Height()) {
-		if err := bc.Checkpoints.CheckBlock(b.Height(), b.Hash()); err != nil {
+	if bc.Network.Checkpoints.IsInCheckpointZone(blockIndex) {
+		if err := bc.Network.Checkpoints.CheckBlock(blockIndex, block.Hash()); err != nil {
 			err := ErrBlockValidationCheckpointBlockHashMismatch
 			logger.Error(err)
 			return err
 		}
 	} else {
-		if err := bc.checkProofOfWork(b, currentDifficulty); err != nil {
+		if err := bc.checkProofOfWork(block, currentDifficulty); err != nil {
 			err := ErrBlockValidationProofOfWorkTooWeak
 			logger.Error(err)
 			return err
@@ -220,89 +238,89 @@ func (bc *BlockChain) AddBlock(b *Block, rawTransactions [][]byte) error {
 
 // validateBlock validates block.
 // Returns and error if block not valid.
-func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) (uint64, error) {
-	if bc.Network.GetBlockMajorVersionForHeight(b.Height()) != b.MajorVersion {
+func (bc *BlockChain) validateBlock(blogger *log.Entry, block *Block, prevBlock *Block) (uint64, error) {
+	if bc.Network.GetBlockMajorVersionForHeight(block.Index()) != block.MajorVersion {
 		err := ErrBlockValidationWrongVersion
 		blogger.Error(err)
 		return 0, err
 	}
 
-	if b.MajorVersion == config.BlockMajorVersion2 && b.Parent.MajorVersion > config.BlockMajorVersion1 {
+	if block.MajorVersion == config.BlockMajorVersion2 && block.Parent.MajorVersion > config.BlockMajorVersion1 {
 		err := ErrBlockValidationParentBlockWrongVersion
-		blogger.WithField("block_parent_major_version", b.Parent.MajorVersion).Error(err)
+		blogger.WithField("block_parent_major_version", block.Parent.MajorVersion).Error(err)
 		return 0, err
 	}
 
-	if b.MajorVersion == config.BlockMajorVersion2 || b.MajorVersion == config.BlockMajorVersion3 {
-		if len(b.Parent.serialize(false)) > 2048 {
+	if block.MajorVersion == config.BlockMajorVersion2 || block.MajorVersion == config.BlockMajorVersion3 {
+		if len(block.Parent.serialize(false)) > 2048 {
 			err := ErrBlockValidationParentBlockSizeTooBig
 			blogger.Error(err)
 			return 0, err
 		}
 	}
 
-	if b.Timestamp > bc.Network.Timestamp()+bc.Network.BlockFutureTimeLimit(b.MajorVersion) {
+	if block.Timestamp > bc.Network.Timestamp()+bc.Network.BlockFutureTimeLimit(block.MajorVersion) {
 		err := ErrBlockValidationTimestampTooFarInFuture
 		blogger.Error(err)
 		return 0, err
 	}
 
-	timestampCheckWindow := bc.Network.BlockTimestampCheckWindow(b.MajorVersion)
-	lastTimestamps := bc.lastBlocksTimestamps(timestampCheckWindow, b)
+	timestampCheckWindow := bc.Network.BlockTimestampCheckWindow(block.MajorVersion)
+	lastTimestamps := bc.lastBlocksTimestamps(timestampCheckWindow, block)
 	if len(lastTimestamps) >= timestampCheckWindow {
-		if b.Timestamp < utils.MedianSlice(lastTimestamps) {
+		if block.Timestamp < utils.MedianSlice(lastTimestamps) {
 			err := ErrBlockValidationTimestampTooFarInPast
 			blogger.Error(err)
 			return 0, err
 		}
 	}
 
-	if len(b.BaseTransaction.Inputs) != 1 {
+	if len(block.BaseTransaction.Inputs) != 1 {
 		err := ErrTransactionInputWrongCount
 		blogger.Error(err)
 		return 0, err
 	}
 
-	if _, ok := b.BaseTransaction.Inputs[0].(InputCoinbase); !ok {
+	if _, ok := block.BaseTransaction.Inputs[0].(InputCoinbase); !ok {
 		err := ErrTransactionInputUnexpectedType
 		blogger.Error(err)
 		return 0, err
 	}
 
-	prevBlockHeight := bc.blockHeight(&b.PreviousBlockHash)
-	if b.BaseTransaction.Inputs[0].(InputCoinbase).BlockIndex != prevBlockHeight {
+	prevBlockHeight := prevBlock.Index()
+	if block.BaseTransaction.Inputs[0].(InputCoinbase).BlockIndex != prevBlockHeight {
 		err := ErrTransactionBaseInputWrongBlockIndex
 		blogger.Error(err)
 		return 0, err
 	}
 
-	if uint32(b.BaseTransaction.UnlockHeight) != prevBlockHeight+bc.Network.MinedMoneyUnlockWindow() {
+	if uint32(block.BaseTransaction.UnlockHeight) != prevBlockHeight+bc.Network.MinedMoneyUnlockWindow() {
 		err := ErrTransactionWrongUnlockTime
 		blogger.Error(err)
 		return 0, err
 	}
 
-	if len(b.BaseTransaction.TransactionSignatures) == 0 {
+	if len(block.BaseTransaction.TransactionSignatures) == 0 {
 		err := ErrTransactionBaseInvalidSignaturesCount
 		blogger.Error(err)
 		return 0, err
 	}
 
-	if b.MajorVersion >= config.BlockMajorVersion5 {
-		cbTransactionExtraFields, parseError := b.BaseTransaction.ParseExtra()
+	if block.MajorVersion >= config.BlockMajorVersion5 {
+		cbTransactionExtraFields, parseError := block.BaseTransaction.ParseExtra()
 		if parseError != nil || cbTransactionExtraFields.MiningTag != nil {
 			err := ErrBlockValidationBaseTransactionExtraMMTag
 			blogger.Error(err)
 			return 0, err
 		}
 
-		if len(b.BaseTransaction.Outputs) != 1 {
+		if len(block.BaseTransaction.Outputs) != 1 {
 			err := ErrTransactionOutputsInvalidCount
 			blogger.Error(err)
 			return 0, err
 		}
 
-		if _, ok := b.BaseTransaction.Outputs[0].Target.(OutputKey); !ok {
+		if _, ok := block.BaseTransaction.Outputs[0].Target.(OutputKey); !ok {
 			err := ErrTransactionBaseOutputWrongType
 			blogger.Error(err)
 			return 0, err
@@ -310,7 +328,7 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) (uint64, error
 	}
 
 	minerReward := uint64(0)
-	for i, output := range b.BaseTransaction.Outputs {
+	for i, output := range block.BaseTransaction.Outputs {
 		ologger := blogger.WithField("coinbase_output_index", i)
 
 		if output.Amount == 0 {
@@ -357,25 +375,13 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, b *Block) (uint64, error
 		minerReward += output.Amount
 	}
 
-	if b.Height() >= config.UpgradeHeightV4s2 && len(b.BaseTransaction.Extra) > config.MaxExtraSize {
+	if block.Index() >= config.UpgradeHeightV4s2 && len(block.BaseTransaction.Extra) > config.MaxExtraSize {
 		err := ErrTransactionExtraTooLarge
 		blogger.Error(err)
 		return 0, err
 	}
 
 	return minerReward, nil
-}
-
-// TODO: Implement the method
-// blockHeight returns index on the current block
-func (bc *BlockChain) blockHeight(h *crypto.Hash) uint32 {
-	return 0
-}
-
-// TODO: Refactor find better implementation way may use only blockHeight
-// topIndex return the index of the top best bc block
-func (bc *BlockChain) topIndex() uint32 {
-	return bc.bestTip.Height() - 1
 }
 
 // TODO: Properly implement this method
@@ -385,16 +391,6 @@ func (bc *BlockChain) topIndex() uint32 {
 func (bc *BlockChain) haveBlock(h *crypto.Hash) bool {
 	_, ok := bc.blocksIndex[*h]
 	return ok
-}
-
-// HaveBlock return whether the block hash contains in the blockchain
-//
-// This function is safe for concurrent access.
-func (bc *BlockChain) HaveBlock(h *crypto.Hash) bool {
-	bc.RLock()
-	hasBlock := bc.haveBlock(h)
-	bc.RUnlock()
-	return hasBlock
 }
 
 // GenesisBlock returns first basic block of the blockchain
@@ -448,6 +444,7 @@ func (bc *BlockChain) deserializeTransactions(blogger *log.Entry, rt [][]byte) (
 
 		transactionsSize += tsSize
 	}
+
 	return transactions, transactionsSize, nil
 }
 

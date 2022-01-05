@@ -104,7 +104,7 @@ func (b *Block) Hash() *crypto.Hash {
 	return b.hash
 }
 
-func (b *Block) Height() uint32 {
+func (b *Block) Index() uint32 {
 	if len(b.BaseTransaction.Inputs) == 1 {
 		i := b.BaseTransaction.Inputs[0]
 
