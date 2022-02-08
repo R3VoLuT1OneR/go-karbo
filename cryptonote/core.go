@@ -37,9 +37,9 @@ package cryptonote
 //	c.bcLock.Lock()
 //	defer c.bcLock.Unlock()
 //
-//	index := b.Index()
+//	hashIndex := b.Index()
 //	hash := b.Hash()
-//	blockStr := fmt.Sprintf("%s (%d)", hash, index)
+//	blockStr := fmt.Sprintf("%s (%d)", hash, hashIndex)
 //
 //	c.logger.Tracef("adding block: %s", blockStr)
 //
@@ -61,7 +61,7 @@ package cryptonote
 //
 //	// TODO: Check that a block is not orphaned
 //	if c.findSegmentContainingBlock(hash) == 0 {
-//		c.logger.Errorf("rejected as orphaned: %d (%s)", index, hash.String())
+//		c.logger.Errorf("rejected as orphaned: %d (%s)", hashIndex, hash.String())
 //		return ErrAddBlockRejectedAsOrphaned
 //	}
 //
@@ -85,7 +85,7 @@ package cryptonote
 //	//
 //	//prevBlockIndex, err := c.BlockHeight(&b.PreviousBlockHash)
 //	//if err != nil {
-//	//	c.logger.Errorf("failed to get prev block (%s) index: %s", b.PreviousBlockHash.String(), err)
+//	//	c.logger.Errorf("failed to get prev block (%s) hashIndex: %s", b.PreviousBlockHash.String(), err)
 //	//	return err
 //	//}
 //	//
@@ -95,7 +95,7 @@ package cryptonote
 //	//if err != nil {
 //	//	return err
 //	//}
-//	// TODO Fetch top index block from current segment
+//	// TODO Fetch top hashIndex block from current segment
 //	// bool addOnTop = cache->getTopBlockIndex() == previousBlockIndex;
 //
 //	if err := c.storage.AppendBlock(b); err != nil {
@@ -172,17 +172,17 @@ package cryptonote
 //func (c *Blockchain) BuildSparseChain() ([]crypto.Hash, error) {
 //	var list []crypto.Hash
 //
-//	topBlock, height, err := c.TopBlock()
+//	bestTip, height, err := c.TopBlock()
 //	if err != nil {
 //		return nil, err
 //	}
 //
-//	topHash := topBlock.Hash()
+//	topHash := bestTip.Hash()
 //
 //	list = append(list, *topHash)
 //
 //	for i := uint32(1); i < height; i *= 2 {
-//		hash, err := c.storage.GetBlockHashByHeight(height - i)
+//		hash, err := c.storage.BlockAtIndex(height - i)
 //		if err != nil {
 //			return nil, err
 //		}
@@ -190,7 +190,7 @@ package cryptonote
 //		list = append(list, *hash)
 //	}
 //
-//	ghash, err := c.storage.GetBlockHashByHeight(0)
+//	ghash, err := c.storage.BlockAtIndex(0)
 //	if err != nil {
 //		return nil, err
 //	}
@@ -220,12 +220,12 @@ package cryptonote
 //		ts := uint64(len(rt))
 //
 //		if ts > maxTxSize {
-//			c.logger.Errorf(fmt.Sprintf("transaction size at index %d bigger than allowed %d", i, maxTxSize))
+//			c.logger.Errorf(fmt.Sprintf("transaction size at hashIndex %d bigger than allowed %d", i, maxTxSize))
 //			return nil, 0, ErrAddBlockTransactionSizeMax
 //		}
 //
 //		if err := t.Deserialize(bytes.NewReader(rt)); err != nil {
-//			c.logger.Errorf(fmt.Sprintf("transaction deserialization at index %d failed: %s", i, err))
+//			c.logger.Errorf(fmt.Sprintf("transaction deserialization at hashIndex %d failed: %s", i, err))
 //			return nil, 0, ErrAddBlockTransactionDeserialization
 //		}
 //

@@ -78,7 +78,7 @@ func (p *Peer) Shutdown() {
 }
 
 func (p *Peer) String() string {
-	return fmt.Sprintf("%d", p.ID)
+	return fmt.Sprintf("%s", p.address)
 }
 
 func (p *Peer) listenForCommands(ctx context.Context) {

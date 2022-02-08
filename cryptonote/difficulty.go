@@ -9,7 +9,7 @@ import (
 // difficultyForNextBlock calculates difficulty for the next block.
 func (bc *BlockChain) difficultyForNextBlock(b *Block) (uint64, error) {
 	if b.Index() > bc.bestTip.Index() {
-		return 0, errors.New(fmt.Sprintf("unknown block index %d, top index is %d", b.Index(), bc.bestTip.Index()))
+		return 0, errors.New(fmt.Sprintf("unknown block hashIndex %d, top hashIndex is %d", b.Index(), bc.bestTip.Index()))
 	}
 
 	nextBlockMajorVersion := bc.Network.GetBlockMajorVersionForHeight(b.Index())

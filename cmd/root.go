@@ -87,6 +87,10 @@ func handleCommand(cmd *cobra.Command, args []string) {
 
 	bc := cryptonote.NewBlockChain(mainnet, storage, coreLogger)
 
+	if err := bc.Init(); err != nil {
+		panic(fmt.Errorf("failed to init blockchain: %w", err))
+	}
+
 	ctx := interruptListener()
 	cfg := p2p.HostConfig{
 		BindAddr: "127.0.0.1:32447",

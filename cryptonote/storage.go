@@ -1,16 +1,45 @@
 package cryptonote
 
-import "github.com/r3volut1oner/go-karbo/crypto"
+import (
+	"errors"
+	"github.com/r3volut1oner/go-karbo/crypto"
+)
+
+var (
+	ErrStorageNetworkMismatch = errors.New("storage network mismatch")
+
+	ErrStorageBlockExists = errors.New("block exists in storage")
+)
 
 // Storage used by blockchain for storing blocks information.
 //
 // In order to implement new type of storage we need to implement this interface.
 type Storage interface {
 
-	// GetBlockHashByHeight provides block by hash
+	// Init method is used for storage initialization for provided network.
+	// We may load the chain from persistent storage on this moment.
+	//
+	// Genesis block must be used for network verification when loading from persistent storage.
+	Init(genesisBlock *Block) error
+
+	// TopIndex of current saved blockchain
+	TopIndex() (uint32, error)
+
+	TopBlock() (*Block, error)
+
+	// AppendBlock to the blockchain storage.
+	AppendBlock(*Block) error
+
+	// HaveBlock verifies that block is saved in DB
+	HaveBlock(*crypto.Hash) bool
+
+	// HashAtIndex provides block by hash
 	// TODO: Review the need for this method. It is used in BuildSparseChain only maybe can be replaced
 	//       with some different method there.
-	GetBlockHashByHeight(uint32) (*crypto.Hash, error)
+	HashAtIndex(uint32) (*crypto.Hash, error)
+
+	// Close database connection
+	Close() error
 
 	//// GetBlockIndexByHash returns height for specific block hash
 	//GetBlockIndexByHash(*crypto.Hash) (uint32, error)
@@ -18,18 +47,10 @@ type Storage interface {
 	//// GetBlockByHeight returns block by height
 	//GetBlockByHeight(uint32) (*Block, error)
 	//
-	//// AppendBlock to database persistence layer.
-	//AppendBlock(*Block) error
 	//
-	//// HaveBlock verifies that block is saved in DB
-	//HaveBlock(*crypto.Hash) (bool, error)
-	//
-	//// TopIndex of current saved blockchain
-	//TopIndex() (uint32, error)
 	//
 	//// IsEmpty checks if database is new and empty
 	//IsEmpty() (bool, error)
 	//
-	//// Close database connection
-	//Close() error
+
 }

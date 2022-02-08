@@ -4,7 +4,7 @@ import "errors"
 
 var (
 	ErrAddBlockAlreadyExists              = errors.New("block already exists")
-	ErrAddBlockPrevBlockIndexMismatch     = errors.New("block index and prev block index don't match")
+	ErrAddBlockPrevBlockIndexMismatch     = errors.New("block hashIndex and prev block hashIndex don't match")
 	ErrAddBlockTransactionCountNotMatch   = errors.New("transaction sizes not match")
 	ErrAddBlockTransactionSizeMax         = errors.New("transaction size bigger than allowed")
 	ErrAddBlockTransactionCoinbaseMaxSize = errors.New("coinbase transaction size bigger than allowed")
@@ -44,14 +44,14 @@ var (
 	ErrTransactionInputIdenticalOutputIndexes          = errors.New("transaction has identical output indexes")
 	ErrTransactionInputKeyImageAlreadySpent            = errors.New("transaction uses spent key image")
 	ErrTransactionInputMultisignatureAlreadySpent      = errors.New("transaction uses spent multisignature")
-	ErrTransactionInputInvalidGlobalIndex              = errors.New("transaction has input with invalid global index")
+	ErrTransactionInputInvalidGlobalIndex              = errors.New("transaction has input with invalid global hashIndex")
 	ErrTransactionInputSpendLockedOut                  = errors.New("transaction uses locked input")
 	ErrTransactionInputInvalidSignatures               = errors.New("transaction has input with invalid signature")
 	ErrTransactionInputWrongSignaturesCount            = errors.New("transaction has input with wrong signatures count")
 	ErrTransactionInputsAmountOverflow                 = errors.New("transaction's inputs sum overflow")
 	ErrTransactionInputWrongCount                      = errors.New("wrong input count")
 	ErrTransactionInputUnexpectedType                  = errors.New("wrong input type")
-	ErrTransactionBaseInputWrongBlockIndex             = errors.New("base input has wrong block index")
+	ErrTransactionBaseInputWrongBlockIndex             = errors.New("base input has wrong block hashIndex")
 	ErrTransactionOutputZeroAmount                     = errors.New("transaction has zero output amount")
 	ErrTransactionOutputInvalidKey                     = errors.New("transaction has output with invalid key")
 	ErrTransactionOutputInvalidRequiredSignaturesCount = errors.New("transaction has output with invalid signatures count")
@@ -82,6 +82,6 @@ var (
 )
 
 var (
-	ErrExtractOutputKeyInvalidGlobalIndex = errors.New("invalid global index")
+	ErrExtractOutputKeyInvalidGlobalIndex = errors.New("invalid global hashIndex")
 	ErrExtractOutputKeyLocked             = errors.New("output locked")
 )

@@ -79,7 +79,7 @@ func MainNet() *Network {
 		P2PCurrentVersion: P2PVersion4,
 
 		SeedNodes: []string{
-			//"localhost:32347",
+			"localhost:32347",
 			//"node.karbo.network:32347",
 			//"seed1.karbowanec.com:32347",
 			//"seed2.karbowanec.com:32347",

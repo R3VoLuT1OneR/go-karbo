@@ -51,6 +51,31 @@ func NewBlockChain(network *config.Network, storage Storage, logger *log.Logger)
 	return bc
 }
 
+// Init the blockchain including storage
+func (bc *BlockChain) Init() error {
+	bc.Lock()
+	defer bc.Unlock()
+
+	genesisBlock, err := bc.GenesisBlock()
+	if err != nil {
+		return err
+	}
+
+	err = bc.storage.Init(genesisBlock)
+	if err != nil {
+		return err
+	}
+
+	topBlock, err := bc.storage.TopBlock()
+	if err != nil {
+		return err
+	}
+
+	bc.bestTip = topBlock
+
+	return nil
+}
+
 // Height returns current blockchain height
 func (bc *BlockChain) Height() uint32 {
 	// TODO: Implement
@@ -59,7 +84,10 @@ func (bc *BlockChain) Height() uint32 {
 
 // TopBlock returns current best block
 func (bc *BlockChain) TopBlock() *Block {
-	return bc.bestTip
+	bc.RLock()
+	topBlock := bc.bestTip
+	bc.RUnlock()
+	return topBlock
 }
 
 // AddBlock used for adding new blocks to the blockchain.
@@ -254,7 +282,7 @@ func (bc *BlockChain) BuildSparseChain() ([]crypto.Hash, error) {
 
 	height := bc.Height()
 	for i := uint32(1); i < height; i *= 2 {
-		hash, err := bc.storage.GetBlockHashByHeight(height - i)
+		hash, err := bc.storage.HashAtIndex(height - i)
 		if err != nil {
 			return nil, err
 		}
@@ -262,7 +290,7 @@ func (bc *BlockChain) BuildSparseChain() ([]crypto.Hash, error) {
 		list = append(list, *hash)
 	}
 
-	genesisHash, err := bc.storage.GetBlockHashByHeight(0)
+	genesisHash, err := bc.storage.HashAtIndex(0)
 	if err != nil {
 		return nil, err
 	}
@@ -437,8 +465,12 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, block *Block, prevBlock 
 //
 // This function is NOT safe for concurrent access
 func (bc *BlockChain) haveBlock(h *crypto.Hash) bool {
-	_, ok := bc.blocksIndex[*h]
-	return ok
+	if bc.storage.HaveBlock(h) {
+		return true
+	}
+
+	// TODO: Implement search for a block in side chains
+	return false
 }
 
 // GenesisBlock returns first basic block of the blockchain
