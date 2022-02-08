@@ -165,19 +165,19 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 			return errors.New(fmt.Sprintf("[%s] request chain with 0 blocks", p))
 		}
 
-		genesisBlockHash, err := p.node.Core.GenesisBlockHash()
+		genesisBlock, err := p.node.Blockchain.GenesisBlock()
 		if err != nil {
 			return fmt.Errorf("[%s] unexpected error: %w", p, err)
 		}
 
 		// Make sure genesis blocks belongs to same network
-		if *genesisBlockHash != notification.Blocks[len(notification.Blocks)-1] {
+		if *genesisBlock.Hash() != notification.Blocks[len(notification.Blocks)-1] {
 			p.Shutdown()
 			return errors.New(fmt.Sprintf("[%s] request chain genesis block not match", p))
 		}
 
 		// Get max index of this node blockchain
-		//topIndex, err := p.node.Core.TopIndex()
+		//topIndex, err := p.node.Blockchain.TopIndex()
 		//if err != nil {
 		//	return fmt.Errorf("[%s] unexpected error: %w", p, err)
 		//}
@@ -202,10 +202,8 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 		}
 
 		firstHash := notification.BlocksHashes[0]
-		hasFirstBlock, err := n.Core.HasBlock(&firstHash)
-		if err != nil {
-			return err
-		}
+		hasFirstBlock := n.Blockchain.HaveBlock(&firstHash)
+
 		if !hasFirstBlock {
 			p.Shutdown()
 			return errors.New(fmt.Sprintf("[%s] hash %s missing in our blockchain", p, firstHash.String()))
@@ -228,10 +226,7 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 
 		allBlockKnown := true
 		for _, bh := range notification.BlocksHashes {
-			hasBlock, err := n.Core.HasBlock(&bh)
-			if err != nil {
-				return err
-			}
+			hasBlock := n.Blockchain.HaveBlock(&bh)
 
 			if allBlockKnown && hasBlock {
 				continue
@@ -339,8 +334,9 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 		rawBlockReader := bytes.NewReader(rawBlock.Block)
 		if err := block.Deserialize(rawBlockReader); err != nil {
 			p.Shutdown()
-			height, _ := p.node.Core.TopIndex()
-			blockHeight := int(height) + 1 + i
+			// TODO: Remove this. It is debug only.
+			height := p.node.Blockchain.Height()
+			blockHeight := height + uint32(i)
 			_ = ioutil.WriteFile(fmt.Sprintf("./block_%d.dat", blockHeight), rawBlock.Block, 0644)
 			return errors.New(
 				fmt.Sprintf("[%s] (%d) failed to convert raw block (%d): %s", p, i, blockHeight, err),
@@ -376,18 +372,14 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 		return err
 	}
 
-	height, err := p.node.Core.TopIndex()
-	if err != nil {
-		return err
-	}
-
+	height := p.node.Blockchain.Height()
 	p.node.logger.Infof("process block, total height: %d", height)
 
 	return p.requestMissingBlocks(true)
 }
 
 func (p *Peer) processNewObjects(objects map[*cryptonote.Block][][]byte) error {
-	core := p.node.Core
+	core := p.node.Blockchain
 
 	for block, transactions := range objects {
 		if err := core.AddBlock(block, transactions); err != nil {
@@ -422,7 +414,7 @@ func (p *Peer) handshake(h *Node) (*HandshakeResponse, error) {
 		return nil, errors.New("state is not before handshake")
 	}
 
-	req, err := NewHandshakeRequest(h.Core)
+	req, err := NewHandshakeRequest(h.Blockchain)
 	if err != nil {
 		return nil, err
 	}
@@ -464,7 +456,7 @@ func (p *Peer) ping() (*PingResponse, error) {
 }
 
 func (p *Peer) requestChain() error {
-	n, err := newRequestChain(p.node.Core)
+	n, err := newRequestChain(p.node.Blockchain)
 	if err != nil {
 		return err
 	}
@@ -502,12 +494,9 @@ func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
 		for len(neededBlocks) > 0 && len(requestBlocks) < MaxBlockSynchronization {
 			nb := neededBlocks[0]
 
-			hasBlock, err := p.node.Core.HasBlock(&nb)
-			if err != nil {
-				return err
-			}
+			haveBlock := p.node.Blockchain.HaveBlock(&nb)
 
-			if !(checkHavingBlocks && hasBlock) {
+			if !(checkHavingBlocks && haveBlock) {
 				requestBlocks = append(requestBlocks, nb)
 			}
 

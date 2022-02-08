@@ -43,6 +43,7 @@ func NewBlockChain(network *config.Network, storage Storage, logger *log.Logger)
 	bc := &BlockChain{
 		Network: network,
 		logger:  logger,
+		storage: storage,
 
 		tips: []*Block{},
 	}
@@ -54,6 +55,11 @@ func NewBlockChain(network *config.Network, storage Storage, logger *log.Logger)
 func (bc *BlockChain) Height() uint32 {
 	// TODO: Implement
 	return 0
+}
+
+// TopBlock returns current best block
+func (bc *BlockChain) TopBlock() *Block {
+	return bc.bestTip
 }
 
 // AddBlock used for adding new blocks to the blockchain.
@@ -234,6 +240,48 @@ func (bc *BlockChain) AddBlock(block *Block, rawTransactions [][]byte) error {
 	logger.Info(emissionChange)
 
 	return nil
+}
+
+// BuildSparseChain
+// IDs pow(2,n) offset, like 2, 4, 8, 16, 32, 64 and so on, and the last one is always genesis block
+func (bc *BlockChain) BuildSparseChain() ([]crypto.Hash, error) {
+	var list []crypto.Hash
+
+	topBlock := bc.TopBlock()
+	topHash := topBlock.Hash()
+
+	list = append(list, *topHash)
+
+	height := bc.Height()
+	for i := uint32(1); i < height; i *= 2 {
+		hash, err := bc.storage.GetBlockHashByHeight(height - i)
+		if err != nil {
+			return nil, err
+		}
+
+		list = append(list, *hash)
+	}
+
+	genesisHash, err := bc.storage.GetBlockHashByHeight(0)
+	if err != nil {
+		return nil, err
+	}
+
+	if !bytes.Equal(genesisHash[:], list[0][:]) && !bytes.Equal(genesisHash[:], list[len(list)-1][:]) {
+		list = append(list, *genesisHash)
+	}
+
+	return list, nil
+}
+
+// HaveBlock returns whether the chain have block represented by provided hash.
+//
+// This function is safe for concurrent access.
+func (bc *BlockChain) HaveBlock(hash *crypto.Hash) bool {
+	bc.RLock()
+	have := bc.haveBlock(hash)
+	bc.RUnlock()
+	return have
 }
 
 // validateBlock validates block.

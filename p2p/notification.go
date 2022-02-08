@@ -97,8 +97,8 @@ func parseNotification(lc *LevinCommand) (interface{}, error) {
 	return nil, errors.New(fmt.Sprintf("unknown notification ID: %d", lc.Command))
 }
 
-func newRequestChain(core *cryptonote.Core) (*NotificationRequestChain, error) {
-	list, err := core.BuildSparseChain()
+func newRequestChain(bc *cryptonote.BlockChain) (*NotificationRequestChain, error) {
+	list, err := bc.BuildSparseChain()
 	if err != nil {
 		return nil, err
 	}

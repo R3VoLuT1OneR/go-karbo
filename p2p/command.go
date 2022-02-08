@@ -103,13 +103,13 @@ var mapCommandStructs = map[uint32]interface{}{
 	CommandTimedSync: TimedSyncRequest{},
 }
 
-func NewHandshakeRequest(core *cryptonote.Core) (*HandshakeRequest, error) {
-	syncData, err := newSyncData(core)
+func NewHandshakeRequest(bc *cryptonote.BlockChain) (*HandshakeRequest, error) {
+	syncData, err := newSyncData(bc)
 	if err != nil {
 		return nil, err
 	}
 
-	nodeData, err := newBasicNodeData(core.BlockChain.Network)
+	nodeData, err := newBasicNodeData(bc.Network)
 	if err != nil {
 		return nil, err
 	}
@@ -128,12 +128,12 @@ func NewHandshakeResponse(h *Node) (*HandshakeResponse, error) {
 		return nil, err
 	}
 
-	nodeData, err := newBasicNodeData(h.Core.BlockChain.Network)
+	nodeData, err := newBasicNodeData(h.Blockchain.Network)
 	if err != nil {
 		return nil, err
 	}
 
-	payloadData, err := newSyncData(h.Core)
+	payloadData, err := newSyncData(h.Blockchain)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func NewHandshakeResponse(h *Node) (*HandshakeResponse, error) {
 }
 
 func newTimedSyncResponse(h *Node) (*TimedSyncResponse, error) {
-	syncData, err := newSyncData(h.Core)
+	syncData, err := newSyncData(h.Blockchain)
 	if err != nil {
 		return nil, err
 	}
@@ -197,13 +197,11 @@ func newPeerEntryList(h *Node) ([]PeerEntry, error) {
 	return peers, nil
 }
 
-func newSyncData(core *cryptonote.Core) (*SyncData, error) {
-	topBlock, height, err := core.TopBlock()
-	if err != nil {
-		return nil, err
-	}
+func newSyncData(bc *cryptonote.BlockChain) (*SyncData, error) {
+	topBlock := bc.TopBlock()
 
 	hash := topBlock.Hash()
+	height := topBlock.Index() + 1
 
 	return &SyncData{height, *hash}, nil
 }

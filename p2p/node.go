@@ -21,8 +21,8 @@ type HostConfig struct {
 }
 
 type Node struct {
-	Config HostConfig
-	Core   *cryptonote.Core
+	Config     HostConfig
+	Blockchain *cryptonote.BlockChain
 
 	dialer *net.Dialer
 	logger *log.Logger
@@ -33,13 +33,13 @@ type Node struct {
 }
 
 // NewNode creates instance of the node
-func NewNode(core *cryptonote.Core, cfg HostConfig, logger *log.Logger) Node {
+func NewNode(core *cryptonote.BlockChain, cfg HostConfig, logger *log.Logger) Node {
 	var wg sync.WaitGroup
 
 	h := Node{
-		Config: cfg,
-		Core:   core,
-		logger: logger,
+		Config:     cfg,
+		Blockchain: core,
+		logger:     logger,
 	}
 
 	h.defaults()

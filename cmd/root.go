@@ -23,46 +23,7 @@ var rootCmd = &cobra.Command{
 	Short:   "Karbo node daemon.",
 	Long:    `Karbo node daemon.`,
 	Version: "0.0.1",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("test cobra: %v, %v", cmd, args)
-
-		mainnet := config.MainNet()
-
-		db, err := cryptonote.NewBadgerDB()
-		if err != nil {
-			panic(err)
-		}
-
-		coreLogger := log.New()
-		coreLogger.Out = os.Stdout
-		coreLogger.Level = log.TraceLevel
-
-		bc := cryptonote.NewBlockChain(mainnet, coreLogger)
-		core, err := cryptonote.NewCore(bc, db, coreLogger)
-		if err != nil {
-			panic(err)
-		}
-
-		ctx := interruptListener()
-		cfg := p2p.HostConfig{
-			BindAddr: "127.0.0.1:32447",
-			Network:  mainnet,
-		}
-
-		logger := log.New()
-		logger.Out = os.Stdout
-		logger.Level = log.TraceLevel
-
-		host := p2p.NewNode(core, cfg, logger)
-
-		fmt.Println("Server started.")
-
-		if err := host.Run(ctx); err != nil {
-			panic(err)
-		}
-
-		fmt.Println("Server stopped.")
-	},
+	Run:     handleCommand,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -112,6 +73,39 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
+}
+
+func handleCommand(cmd *cobra.Command, args []string) {
+	mainnet := config.MainNet()
+
+	// Initialize blockchain storage
+	storage := cryptonote.NewMemoryStorage()
+
+	coreLogger := log.New()
+	coreLogger.Out = os.Stdout
+	coreLogger.Level = log.TraceLevel
+
+	bc := cryptonote.NewBlockChain(mainnet, storage, coreLogger)
+
+	ctx := interruptListener()
+	cfg := p2p.HostConfig{
+		BindAddr: "127.0.0.1:32447",
+		Network:  mainnet,
+	}
+
+	logger := log.New()
+	logger.Out = os.Stdout
+	logger.Level = log.TraceLevel
+
+	host := p2p.NewNode(bc, cfg, logger)
+
+	fmt.Println("Server started.")
+
+	if err := host.Run(ctx); err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Server stopped.")
 }
 
 func interruptListener() context.Context {

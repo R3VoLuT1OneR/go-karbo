@@ -1,6 +1,6 @@
 package cryptonote
 
-//type Core struct {
+//type Blockchain struct {
 //	BlockChain *BlockChain
 //
 //	storage Storage
@@ -10,8 +10,8 @@ package cryptonote
 //	bcLock sync.RWMutex
 //}
 //
-//func NewCore(bc *BlockChain, DB Storage, logger *log.Logger) (*Core, error) {
-//	core := &Core{
+//func NewCore(bc *BlockChain, DB Storage, logger *log.Logger) (*Blockchain, error) {
+//	core := &Blockchain{
 //		BlockChain: bc,
 //		storage:    DB,
 //		logger:     logger,
@@ -24,7 +24,7 @@ package cryptonote
 //	return core, nil
 //}
 //
-//func (c *Core) Init() error {
+//func (c *Blockchain) Init() error {
 //	if err := c.initDB(); err != nil {
 //		return errors.New(fmt.Sprintf("failed to initialize storage: %s", err))
 //	}
@@ -33,7 +33,7 @@ package cryptonote
 //}
 //
 //// AddBlock used to add next block to the blockchain
-//func (c *Core) AddBlock(b *Block, rawTransactions [][]byte) error {
+//func (c *Blockchain) AddBlock(b *Block, rawTransactions [][]byte) error {
 //	c.bcLock.Lock()
 //	defer c.bcLock.Unlock()
 //
@@ -44,7 +44,7 @@ package cryptonote
 //	c.logger.Tracef("adding block: %s", blockStr)
 //
 //	// Verify that block is not added to blockchain
-//	hasBlock, err := c.storage.HasBlock(hash)
+//	hasBlock, err := c.storage.HaveBlock(hash)
 //	if err != nil {
 //		return fmt.Errorf("unexpected error: %w", err)
 //	}
@@ -105,8 +105,8 @@ package cryptonote
 //	return nil
 //}
 //
-//func (c *Core) HasBlock(h *crypto.Hash) (bool, error) {
-//	hasBlock, err := c.storage.HasBlock(h)
+//func (c *Blockchain) HaveBlock(h *crypto.Hash) (bool, error) {
+//	hasBlock, err := c.storage.HaveBlock(h)
 //	if err != nil {
 //		return false, nil
 //	}
@@ -114,7 +114,7 @@ package cryptonote
 //	return hasBlock, nil
 //}
 //
-//func (c *Core) TopIndex() (uint32, error) {
+//func (c *Blockchain) TopIndex() (uint32, error) {
 //	height, err := c.storage.TopIndex()
 //	if err != nil {
 //		c.logger.Errorf("failed to get height from storage: %s", err)
@@ -124,7 +124,7 @@ package cryptonote
 //	return height, err
 //}
 //
-//func (c *Core) BlockHeight(h *crypto.Hash) (uint32, error) {
+//func (c *Blockchain) BlockHeight(h *crypto.Hash) (uint32, error) {
 //	i, err := c.storage.GetBlockIndexByHash(h)
 //
 //	if err != nil {
@@ -135,7 +135,7 @@ package cryptonote
 //}
 //
 //// BlockByHeight returns block by height
-//func (c *Core) BlockByHeight(h uint32) (*Block, error) {
+//func (c *Blockchain) BlockByHeight(h uint32) (*Block, error) {
 //	b, err := c.storage.GetBlockByHeight(h)
 //
 //	if err != nil {
@@ -145,7 +145,7 @@ package cryptonote
 //	return b, nil
 //}
 //
-//func (c *Core) GenesisBlockHash() (h *crypto.Hash, err error) {
+//func (c *Blockchain) GenesisBlockHash() (h *crypto.Hash, err error) {
 //	if b, err := c.storage.GetBlockByHeight(0); err == nil {
 //		return b.Hash(), nil
 //	}
@@ -153,7 +153,7 @@ package cryptonote
 //	return nil, fmt.Errorf("failed to get genesis block: %w", err)
 //}
 //
-//func (c *Core) TopBlock() (*Block, uint32, error) {
+//func (c *Blockchain) TopBlock() (*Block, uint32, error) {
 //	height, err := c.TopIndex()
 //	if err != nil {
 //		return nil, 0, err
@@ -169,7 +169,7 @@ package cryptonote
 
 //// BuildSparseChain
 //// IDs pow(2,n) offset, like 2, 4, 8, 16, 32, 64 and so on, and the last one is always genesis block
-//func (c *Core) BuildSparseChain() ([]crypto.Hash, error) {
+//func (c *Blockchain) BuildSparseChain() ([]crypto.Hash, error) {
 //	var list []crypto.Hash
 //
 //	topBlock, height, err := c.TopBlock()
@@ -198,11 +198,11 @@ package cryptonote
 //	if !bytes.Equal(ghash[:], list[0][:]) && !bytes.Equal(ghash[:], list[len(list)-1][:]) {
 //		list = append(list, *ghash)
 //	}
-
+//
 //	return list, nil
 //}
 //
-//func (c *Core) initDB() error {
+//func (c *Blockchain) initDB() error {
 //	if err := c.storage.Init(c.BlockChain); err != nil {
 //		return err
 //	}
@@ -210,7 +210,7 @@ package cryptonote
 //	return nil
 //}
 //
-//func (c *Core) deserializeTransactions(rawTransactions [][]byte) ([]Transaction, uint64, error) {
+//func (c *Blockchain) deserializeTransactions(rawTransactions [][]byte) ([]Transaction, uint64, error) {
 //	var size uint64
 //	var transactions []Transaction
 //
@@ -237,7 +237,7 @@ package cryptonote
 //}
 //
 //// ------------------ Experiments ------------------------------
-//func (c *Core) findSegmentContainingBlock(h *crypto.Hash) int {
+//func (c *Blockchain) findSegmentContainingBlock(h *crypto.Hash) int {
 //	blockSegment := c.findMainChainSegmentContainingBlock(h)
 //
 //	if blockSegment != 0 {
@@ -247,10 +247,10 @@ package cryptonote
 //	return c.findMainChainSegmentContainingBlock(h)
 //}
 //
-//func (c *Core) findMainChainSegmentContainingBlock(h *crypto.Hash) int {
+//func (c *Blockchain) findMainChainSegmentContainingBlock(h *crypto.Hash) int {
 //	return 0
 //}
 //
-//func (c *Core) findAlternativeSegmentContainingBlock(h *crypto.Hash) int {
+//func (c *Blockchain) findAlternativeSegmentContainingBlock(h *crypto.Hash) int {
 //	return 0
 //}
