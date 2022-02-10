@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
+	"go.uber.org/zap"
 	"io"
 	"math/rand"
 	"net"
 	"reflect"
 	"sync"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type HostConfig struct {
@@ -29,7 +28,7 @@ type Node struct {
 	Blockchain *cryptonote.BlockChain
 
 	dialer *net.Dialer
-	logger *log.Logger
+	logger *zap.SugaredLogger
 	wg     *sync.WaitGroup
 	ps     *peerStore
 
@@ -39,13 +38,13 @@ type Node struct {
 }
 
 // NewNode creates instance of the node
-func NewNode(core *cryptonote.BlockChain, cfg HostConfig, logger *log.Logger) Node {
+func NewNode(core *cryptonote.BlockChain, cfg HostConfig, logger *zap.Logger) Node {
 	var wg sync.WaitGroup
 
 	h := Node{
 		Config:     cfg,
 		Blockchain: core,
-		logger:     logger,
+		logger:     logger.Sugar(),
 	}
 
 	h.defaults()
@@ -119,7 +118,7 @@ func (n *Node) handleIncomingConnection(conn *net.TCPConn) {
 	// TODO: Enabling handling incoming connections
 	//return
 
-	peer := NewPeerFromIncomingConnection(conn)
+	peer := NewPeerFromIncomingConnection(n, conn)
 
 	//// TODO: Add peer to peerstore. Make sure it is not exists.
 	//
@@ -173,7 +172,7 @@ func (n *Node) listenForCommands(p *Peer) {
 
 		// On any error we move the peer to the grey list
 		if err != nil {
-			log.Errorf("error on read command: %s", err)
+			n.logger.Errorf("error on read command: %s", err)
 			_ = n.ps.toGrey(p)
 			break
 		}
@@ -198,7 +197,7 @@ func (n *Node) listenForCommands(p *Peer) {
 //
 // Receive notification from remote peer and handle it depend on the notification code.
 func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
-	n.logger.Tracef("[%s] handeling notification: %d", p, cmd.Command)
+	n.logger.Debugf("[%s] handeling notification: %d", p, cmd.Command)
 
 	// TODO: This part of the code can be used for debug
 	//cwd, err := os.Getwd()
@@ -255,11 +254,11 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 		//	TotalHeight: topIndex + 1,
 		//}
 
-		n.logger.Tracef("[%s] request chain %d blocks.", p, len(notification.Blocks))
+		n.logger.Debugf("[%s] request chain %d blocks.", p, len(notification.Blocks))
 	case NotificationResponseChainEntry:
 		notification := nt.(NotificationResponseChainEntry)
 
-		n.logger.Tracef(
+		n.logger.Debugf(
 			"[%s] notification response chain entry, start: %d, total: %d, blocks: %d",
 			p, notification.StartHeight, notification.TotalHeight, len(notification.BlocksHashes),
 		)
@@ -329,7 +328,12 @@ func (n *Node) handleCommand(p *Peer, cmd *LevinCommand) error {
 
 	switch c.(type) {
 	case HandshakeRequest:
-		if err := HandleHandshake(n, p, c.(HandshakeRequest), cmd); err != nil {
+		if err := n.HandleHandshake(p, c.(HandshakeRequest)); err != nil {
+			return err
+		}
+
+		rsp := NewHandshakeResponse(n.Blockchain, n.ps.toPeerEntries())
+		if err := p.protocol.Reply(cmd.Command, rsp, 1); err != nil {
 			return err
 		}
 	case TimedSyncRequest:

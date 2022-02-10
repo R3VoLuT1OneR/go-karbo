@@ -42,16 +42,6 @@ type PeerEntry struct {
 	LastSeen uint64
 }
 
-func (pe *PeerEntry) FromPeer(p *Peer) error {
-	pe.ID = p.ID
-	pe.Address = p.address
-
-	// TODO: Get real last seen
-	pe.LastSeen = uint64(time.Now().Unix())
-
-	return nil
-}
-
 type TimedSyncRequest struct {
 	PayloadData SyncData `binary:"payload_data"`
 }
@@ -74,65 +64,31 @@ var mapCommandStructs = map[uint32]interface{}{
 	CommandTimedSync: TimedSyncRequest{},
 }
 
-func newTimedSyncResponse(h *Node) (*TimedSyncResponse, error) {
-	syncData, err := newSyncData(h.Blockchain)
-	if err != nil {
-		return nil, err
-	}
-
-	peerList, err := newPeerEntryList(h)
-	if err != nil {
-		return nil, err
-	}
-
+func newTimedSyncResponse(n *Node) (*TimedSyncResponse, error) {
 	return &TimedSyncResponse{
 		LocalTime:   uint64(time.Now().Unix()),
-		PayloadData: *syncData,
-		Peers:       peerList,
+		PayloadData: *newSyncData(n.Blockchain),
+		Peers:       n.ps.toPeerEntries(),
 	}, nil
 }
 
-func newBasicNodeData(n *config.Network) (BasicNodeData, error) {
+func newBasicNodeData(n *config.Network) BasicNodeData {
 	return BasicNodeData{
 		NetworkID: n.NetworkID,
 		Version:   n.P2PCurrentVersion,
 		LocalTime: uint64(time.Now().Unix()),
 		PeerID:    uint64(rand.Int63()),
 		MyPort:    32347,
-	}, nil
+	}
 }
 
-func newPeerEntryList(h *Node) ([]PeerEntry, error) {
-	var peers []PeerEntry
-
-	for _, p := range h.ps.white.peers {
-		var pe PeerEntry
-		if err := pe.FromPeer(p); err != nil {
-			return nil, err
-		}
-
-		peers = append(peers, pe)
-	}
-
-	for _, p := range h.ps.grey.peers {
-		var pe PeerEntry
-		if err := pe.FromPeer(p); err != nil {
-			return nil, err
-		}
-
-		peers = append(peers, pe)
-	}
-
-	return peers, nil
-}
-
-func newSyncData(bc *cryptonote.BlockChain) (*SyncData, error) {
+func newSyncData(bc *cryptonote.BlockChain) *SyncData {
 	topBlock := bc.TopBlock()
 
 	hash := topBlock.Hash()
 	height := topBlock.Index() + 1
 
-	return &SyncData{height, *hash}, nil
+	return &SyncData{height, *hash}
 }
 
 func parseCommand(lc *LevinCommand) (interface{}, error) {

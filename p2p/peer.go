@@ -8,10 +8,12 @@ import (
 	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"github.com/signalsciences/ipv4"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net"
+	"strconv"
 	"sync"
+	"time"
 )
 
 const (
@@ -33,7 +35,11 @@ type Peer struct {
 	// TODO: Make sure we generate local peer ID and updating external IDs
 	ID uint64
 
-	logger *log.Logger
+	// logger to be used for logging any peer events
+	logger *zap.SugaredLogger
+
+	// isIncoming flags if peer is got from incoming connection
+	isIncoming bool
 
 	version byte
 	state   byte
@@ -48,6 +54,10 @@ type Peer struct {
 	neededBlocks    crypto.HashList
 	requestedBlocks crypto.HashList
 
+	// procMutex blocked when peer processing some command or notification
+	procMutex sync.Mutex
+
+	// struct mutex is used for blocking peer attribute updates
 	sync.RWMutex
 }
 
@@ -72,23 +82,54 @@ func NewPeerFromTCPAddress(ctx context.Context, n *Node, addr string) (*Peer, er
 		return nil, err
 	}
 
-	peer := Peer{
-		protocol: &LevinProtocol{conn},
-		address:  NetworkAddressFromTCPAddr(tcpAddr),
-	}
+	address := NetworkAddressFromTCPAddr(tcpAddr)
 
-	return &peer, nil
+	return NewPeer(n.logger, &LevinProtocol{conn}, address, false), nil
 }
 
 // NewPeerFromIncomingConnection returns new seed from some incoming connection.
-func NewPeerFromIncomingConnection(conn *net.TCPConn) *Peer {
+func NewPeerFromIncomingConnection(n *Node, conn *net.TCPConn) *Peer {
+	address := NetworkAddressFromTCPAddr(conn.RemoteAddr().(*net.TCPAddr))
+
+	return NewPeer(n.logger, &LevinProtocol{conn}, address, true)
+}
+
+func NewPeer(logger *zap.SugaredLogger, protocol *LevinProtocol, address NetworkAddress, isIncoming bool) *Peer {
 	return &Peer{
-		protocol: &LevinProtocol{conn},
-		address:  NetworkAddressFromTCPAddr(conn.RemoteAddr().(*net.TCPAddr)),
+		protocol:   protocol,
+		address:    address,
+		isIncoming: isIncoming,
+		logger: logger.With(
+			zap.String("address", address.String()),
+			zap.Bool("isIncoming", isIncoming),
+		),
+	}
+}
+
+func (p *Peer) SetID(ID uint64) {
+	p.Lock()
+	p.logger = p.logger.With(zap.String("ID", strconv.FormatUint(ID, 10)))
+	p.ID = ID
+	p.Unlock()
+}
+
+func (p *Peer) SetVersion(version byte) {
+	p.Lock()
+	p.logger = p.logger.With(zap.String("version", string(version)))
+	p.version = version
+	p.Unlock()
+}
+
+func (p *Peer) PeerEntry() PeerEntry {
+	return PeerEntry{
+		ID:       p.ID,
+		Address:  p.address,
+		LastSeen: uint64(time.Now().Unix()),
 	}
 }
 
 func (p *Peer) Shutdown() {
+	p.logger.Debug("shutdown request received")
 	p.state = PeerStateShutdown
 }
 
@@ -98,7 +139,7 @@ func (p *Peer) String() string {
 
 func (p *Peer) handleResponseGetObjects(bc *cryptonote.BlockChain, nt NotificationResponseGetObjects) error {
 
-	p.logger.Tracef("[%s] response to get objects", p)
+	p.logger.Debugf("[%s] response to get objects", p)
 
 	if len(nt.Blocks) == 0 {
 		p.Shutdown()
@@ -202,13 +243,8 @@ func (p *Peer) handshake(h *Node) (*HandshakeResponse, error) {
 		return nil, errors.New("state is not before handshake")
 	}
 
-	req, err := NewHandshakeRequest(h.Blockchain)
-	if err != nil {
-		return nil, err
-	}
-
 	var res HandshakeResponse
-	if err := p.protocol.Invoke(CommandHandshake, *req, &res); err != nil {
+	if err := p.protocol.Invoke(CommandHandshake, NewHandshakeRequest(h.Blockchain), &res); err != nil {
 		return nil, err
 	}
 
@@ -249,7 +285,7 @@ func (p *Peer) requestChain(bc *cryptonote.BlockChain) error {
 		return err
 	}
 
-	p.logger.Tracef("[%s] request chain %d (%d blocks) ", p, p.lastResponseHeight, len(n.Blocks))
+	p.logger.Debugf("[%s] request chain %d (%d blocks) ", p, p.lastResponseHeight, len(n.Blocks))
 
 	if err := p.protocol.Notify(NotificationRequestChainID, *n); err != nil {
 		return err
@@ -326,7 +362,7 @@ func (p *Peer) requestMissingBlocks(bc *cryptonote.BlockChain, checkHavingBlocks
 		// src/CryptoNoteProtocol/CryptoNoteProtocolHandler.cpp:907
 
 		p.state = PeerStateNormal
-		p.logger.Tracef("[%s] syncronized", p)
+		p.logger.Debugf("[%s] syncronized", p)
 
 		// TODO: On connection synchronized
 		// src/CryptoNoteProtocol/CryptoNoteProtocolHandler.cpp:911

@@ -5,10 +5,9 @@ import (
 	"fmt"
 )
 
-
 type peerStore struct {
-	white 	*peerList
-	grey 	*peerList
+	white *peerList
+	grey  *peerList
 }
 
 type peerList struct {
@@ -18,8 +17,22 @@ type peerList struct {
 func NewPeerStore() *peerStore {
 	return &peerStore{
 		white: &peerList{map[uint64]*Peer{}},
-		grey: &peerList{map[uint64]*Peer{}},
+		grey:  &peerList{map[uint64]*Peer{}},
 	}
+}
+
+func (ps *peerStore) toPeerEntries() []PeerEntry {
+	var peers []PeerEntry
+
+	for _, p := range ps.white.peers {
+		peers = append(peers, p.PeerEntry())
+	}
+
+	for _, p := range ps.grey.peers {
+		peers = append(peers, p.PeerEntry())
+	}
+
+	return peers
 }
 
 func (ps *peerStore) toWhite(p *Peer) error {

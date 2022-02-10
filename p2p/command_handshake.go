@@ -3,6 +3,8 @@ package p2p
 import (
 	"errors"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
+	"go.uber.org/zap"
+	"strconv"
 )
 
 type HandshakeRequest struct {
@@ -16,77 +18,70 @@ type HandshakeResponse struct {
 	Peers       []PeerEntry   `binary:"local_peerlist,binary"`
 }
 
+var (
+	ErrHandshakeWrongNetwork    = errors.New("wrong network connection")
+	ErrHandshakeNotIncoming     = errors.New("handshake not from incoming connection")
+	ErrHandshakeHasID           = errors.New("ID for the connecting peer already set")
+	ErrHandshakeProcessSyncData = errors.New("failed to process sync data")
+)
+
 // NewHandshakeRequest returns new struct to be sent as handshake request command to new peer.
-func NewHandshakeRequest(bc *cryptonote.BlockChain) (*HandshakeRequest, error) {
-	syncData, err := newSyncData(bc)
-	if err != nil {
-		return nil, err
+func NewHandshakeRequest(bc *cryptonote.BlockChain) HandshakeRequest {
+	return HandshakeRequest{
+		NodeData:    newBasicNodeData(bc.Network),
+		PayloadData: *newSyncData(bc),
 	}
-
-	nodeData, err := newBasicNodeData(bc.Network)
-	if err != nil {
-		return nil, err
-	}
-
-	r := HandshakeRequest{
-		NodeData:    nodeData,
-		PayloadData: *syncData,
-	}
-
-	return &r, nil
 }
 
 // NewHandshakeResponse returns new struct to make response for handshake request
-func NewHandshakeResponse(h *Node) (*HandshakeResponse, error) {
-	peerList, err := newPeerEntryList(h)
-	if err != nil {
-		return nil, err
+func NewHandshakeResponse(bc *cryptonote.BlockChain, peerEntries []PeerEntry) HandshakeResponse {
+	return HandshakeResponse{
+		NodeData:    newBasicNodeData(bc.Network),
+		PayloadData: *newSyncData(bc),
+		Peers:       peerEntries,
 	}
-
-	nodeData, err := newBasicNodeData(h.Blockchain.Network)
-	if err != nil {
-		return nil, err
-	}
-
-	payloadData, err := newSyncData(h.Blockchain)
-	if err != nil {
-		return nil, err
-	}
-
-	return &HandshakeResponse{
-		NodeData:    nodeData,
-		PayloadData: *payloadData,
-		Peers:       peerList,
-	}, nil
 }
 
-func HandleHandshake(n *Node, p *Peer, req HandshakeRequest, cmd *LevinCommand) error {
-	p.Lock()
+func (n *Node) HandleHandshake(p *Peer, req HandshakeRequest) error {
+	p.procMutex.Lock()
+	defer p.procMutex.Unlock()
 
-	p.version = req.NodeData.Version
+	// Update or set remove peer version
+	p.SetVersion(req.NodeData.Version)
 
 	// TODO: Verify that remote IP allowed to connect to our node
 
-	// TODO: Check peer network and rest of the data
 	if req.NodeData.NetworkID != n.Config.Network.NetworkID {
-		return errors.New("wrong network on handshake")
+		err := ErrHandshakeWrongNetwork
+		p.logger.Error(err, zap.String("peerID", req.NodeData.NetworkID.String()))
+		p.Shutdown()
+		return err
+	}
+
+	if !p.isIncoming {
+		err := ErrHandshakeNotIncoming
+		p.logger.Error(err)
+		p.Shutdown()
+		return err
+	}
+
+	if p.ID != 0 {
+		err := ErrHandshakeHasID
+		p.logger.Error(err, zap.String("peerID", strconv.FormatUint(req.NodeData.PeerID, 10)))
+		p.Shutdown()
+		return err
+	}
+
+	p.SetID(req.NodeData.PeerID)
+
+	if err := p.processSyncData(req.PayloadData, true); err != nil {
+		err := ErrHandshakeProcessSyncData
+		p.Shutdown()
+		return err
 	}
 
 	// TODO: Send ping and make sure we can connect to the peer and add it to the white list.
-	//if err := p.processSyncData(c.(HandshakeRequest).PayloadData, true); err != nil {
-	//	return err
-	//}
 
-	n.logger.Debugf("[%v] handshake received", p.ID)
-
-	rsp, err := NewHandshakeResponse(n)
-	if err != nil {
-		return err
-	}
-
-	if err := p.protocol.Reply(cmd.Command, *rsp, 1); err != nil {
-		return err
-	}
-
+	p.logger.Debug("handshake received")
 	return nil
 }

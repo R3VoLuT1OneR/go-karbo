@@ -6,8 +6,9 @@ import (
 	"github.com/r3volut1oner/go-karbo/config"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"github.com/r3volut1oner/go-karbo/p2p"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 	"os"
 	"os/signal"
 
@@ -81,11 +82,11 @@ func handleCommand(cmd *cobra.Command, args []string) {
 	// Initialize blockchain storage
 	storage := cryptonote.NewMemoryStorage()
 
-	coreLogger := log.New()
-	coreLogger.Out = os.Stdout
-	coreLogger.Level = log.TraceLevel
+	logrusLogger := logrus.New()
+	logrusLogger.Out = os.Stdout
+	logrusLogger.Level = logrus.TraceLevel
 
-	bc := cryptonote.NewBlockChain(mainnet, storage, coreLogger)
+	bc := cryptonote.NewBlockChain(mainnet, storage, logrusLogger)
 
 	if err := bc.Init(); err != nil {
 		panic(fmt.Errorf("failed to init blockchain: %w", err))
@@ -97,11 +98,12 @@ func handleCommand(cmd *cobra.Command, args []string) {
 		Network:  mainnet,
 	}
 
-	logger := log.New()
-	logger.Out = os.Stdout
-	logger.Level = log.TraceLevel
+	zapLogger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
 
-	host := p2p.NewNode(bc, cfg, logger)
+	host := p2p.NewNode(bc, cfg, zapLogger)
 
 	fmt.Println("Server started.")
 
