@@ -7,13 +7,8 @@ import (
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
-	log "github.com/sirupsen/logrus"
-	"io"
 	"io/ioutil"
 	"net"
-	"os"
-	"reflect"
-	"time"
 )
 
 const (
@@ -46,6 +41,7 @@ type Peer struct {
 	requestedBlocks crypto.HashList
 }
 
+// NewPeerFromTCPAddress returns new peer from the IP address. Used for creating seed peers.
 func NewPeerFromTCPAddress(ctx context.Context, n *Node, addr string) (*Peer, error) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
@@ -66,6 +62,7 @@ func NewPeerFromTCPAddress(ctx context.Context, n *Node, addr string) (*Peer, er
 	return &peer, nil
 }
 
+// NewPeerFromIncomingConnection returns new seed from some incoming connection.
 func NewPeerFromIncomingConnection(node *Node, conn net.Conn) *Peer {
 	return &Peer{
 		node:     node,
@@ -79,231 +76,6 @@ func (p *Peer) Shutdown() {
 
 func (p *Peer) String() string {
 	return fmt.Sprintf("%s", p.address)
-}
-
-func (p *Peer) listenForCommands(ctx context.Context) {
-	for {
-		switch p.state {
-		case PeerStateSyncRequired:
-			p.state = PeerStateSynchronizing
-
-			if err := p.requestChain(); err != nil {
-				p.node.logger.Errorf("failed to write request chain: %s", err)
-			}
-
-		case PeerStateShutdown:
-			p.node.logger.Infof("[%d] shutting down...", p.ID)
-			return
-		}
-
-		select {
-		case <-time.After(time.Second * 3):
-		case <-ctx.Done():
-			return
-		}
-
-		cmd, err := p.protocol.read()
-		if err == io.EOF {
-			continue
-		}
-
-		if err != nil {
-			log.Errorf("error on read command: %s", err)
-			_ = p.node.ps.toGrey(p)
-			break
-		}
-
-		if cmd.IsNotify {
-			if err := p.node.handleNotification(p, cmd); err != nil {
-				p.node.logger.Errorf("failed to handle notification %d: %s", cmd.Command, err)
-			}
-
-			continue
-		}
-
-		if err := p.handleCommand(cmd); err != nil {
-			p.node.logger.Errorf("failed handle command (%d): %s", cmd.Command, err)
-		}
-	}
-}
-
-// handleNotification
-//
-// Receive notification from remote peer and handle it depend on the notification code.
-func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
-	n.logger.Tracef("[%s] handeling notification: %d", p, cmd.Command)
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	err = ioutil.WriteFile(
-		fmt.Sprintf("%s/%d.dat", cwd, cmd.Command),
-		cmd.Payload,
-		0644,
-	)
-	if err != nil {
-		panic(err)
-	}
-
-	nt, err := parseNotification(cmd)
-	if err != nil {
-		return err
-	}
-
-	switch nt.(type) {
-	case NotificationTxPool:
-		notification := nt.(NotificationTxPool)
-
-		n.logger.Debugf("[%s] notification tx pool, size: %d", p, len(notification.Transactions))
-	case NotificationRequestChain:
-		notification := nt.(NotificationRequestChain)
-
-		// Verify more than 0 requested blocks
-		if len(notification.Blocks) == 0 {
-			p.Shutdown()
-			return errors.New(fmt.Sprintf("[%s] request chain with 0 blocks", p))
-		}
-
-		genesisBlock, err := p.node.Blockchain.GenesisBlock()
-		if err != nil {
-			return fmt.Errorf("[%s] unexpected error: %w", p, err)
-		}
-
-		// Make sure genesis blocks belongs to same network
-		if *genesisBlock.Hash() != notification.Blocks[len(notification.Blocks)-1] {
-			p.Shutdown()
-			return errors.New(fmt.Sprintf("[%s] request chain genesis block not match", p))
-		}
-
-		// Get max index of this node blockchain
-		//topIndex, err := p.node.Blockchain.TopIndex()
-		//if err != nil {
-		//	return fmt.Errorf("[%s] unexpected error: %w", p, err)
-		//}
-
-		// TODO: Build response chain entry and response to requested peer
-		//responseChainEntry := &NotificationResponseChainEntry{
-		//	TotalHeight: topIndex + 1,
-		//}
-
-		n.logger.Tracef("[%s] request chain %d blocks.", p, len(notification.Blocks))
-	case NotificationResponseChainEntry:
-		notification := nt.(NotificationResponseChainEntry)
-
-		n.logger.Tracef(
-			"[%s] notification response chain entry, start: %d, total: %d, blocks: %d",
-			p, notification.StartHeight, notification.TotalHeight, len(notification.BlocksHashes),
-		)
-
-		if len(notification.BlocksHashes) == 0 {
-			p.Shutdown()
-			return errors.New(fmt.Sprintf("[%s] received empty blocks in response chain enrty", p))
-		}
-
-		firstHash := notification.BlocksHashes[0]
-		hasFirstBlock := n.Blockchain.HaveBlock(&firstHash)
-
-		if !hasFirstBlock {
-			p.Shutdown()
-			return errors.New(fmt.Sprintf("[%s] hash %s missing in our blockchain", p, firstHash.String()))
-		}
-
-		p.remoteHeight = notification.TotalHeight
-		p.lastResponseHeight = notification.StartHeight + uint32(len(notification.BlocksHashes)-1)
-
-		if p.lastResponseHeight > p.remoteHeight {
-			p.Shutdown()
-			return errors.New(
-				fmt.Sprintf(
-					"[%s] sent wrong response chain entry, with TotalHeight = %d, StartHeight = %d, blocks = %d", p,
-					notification.StartHeight,
-					notification.TotalHeight,
-					len(notification.BlocksHashes),
-				),
-			)
-		}
-
-		allBlockKnown := true
-		for _, bh := range notification.BlocksHashes {
-			hasBlock := n.Blockchain.HaveBlock(&bh)
-
-			if allBlockKnown && hasBlock {
-				continue
-			}
-
-			allBlockKnown = false
-			p.neededBlocks = append(p.neededBlocks, bh)
-		}
-
-		return p.requestMissingBlocks(false)
-	case NotificationResponseGetObjects:
-		notification := nt.(NotificationResponseGetObjects)
-
-		n.logger.Debugf(
-			"[%s] NotificationResponseGetObjects, height: %d",
-			p, notification.CurrentBlockchainHeight,
-		)
-
-		return p.handleResponseGetObjects(notification)
-	default:
-		n.logger.Errorf("can't handle notification type: %s", reflect.TypeOf(nt))
-	}
-
-	return nil
-}
-
-func (p *Peer) handleCommand(cmd *LevinCommand) error {
-	c, err := parseCommand(cmd)
-	if err != nil {
-		return err
-	}
-
-	switch c.(type) {
-	case HandshakeRequest:
-		// TODO: Check peer network and rest of the data
-		handshakeRequest := c.(HandshakeRequest)
-		if handshakeRequest.NodeData.NetworkID != p.node.Config.Network.NetworkID {
-			return errors.New("wrong network on handshake")
-		}
-
-		// TODO: Send ping and make sure we can connect to the peer and add it to the white list.
-		//if err := p.processSyncData(c.(HandshakeRequest).PayloadData, true); err != nil {
-		//	return err
-		//}
-
-		p.node.logger.Debugf("[%v] handshake received", p.ID)
-
-		rsp, err := NewHandshakeResponse(p.node)
-		if err != nil {
-			return err
-		}
-
-		if err := p.protocol.Reply(cmd.Command, *rsp, 1); err != nil {
-			return err
-		}
-
-	case TimedSyncRequest:
-		command := c.(TimedSyncRequest)
-		if err := p.processSyncData(command.PayloadData, false); err != nil {
-			return err
-		}
-
-		res, err := newTimedSyncResponse(p.node)
-		if err != nil {
-			return err
-		}
-
-		if err := p.protocol.Reply(cmd.Command, *res, 1); err != nil {
-			return err
-		}
-
-		p.node.logger.Infof("[%s] sync request %d", p, command.PayloadData.CurrentHeight)
-	default:
-		p.node.logger.Errorf("received unknown commands type: %s", reflect.TypeOf(c))
-	}
-
-	return nil
 }
 
 func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error {

@@ -15,13 +15,13 @@ import (
 )
 
 const (
-	CommandPoolBase            = 1000
-	CommandHandshake           = CommandPoolBase + 1
-	CommandTimedSync           = CommandPoolBase + 2
-	CommandPing                = CommandPoolBase + 3
-	CommandRequestStatInfo     = CommandPoolBase + 4
-	CommandRequestNetworkState = CommandPoolBase + 5
-	CommandRequestPeerID       = CommandPoolBase + 6
+	CommandPoolBase            = 1000                // 1000
+	CommandHandshake           = CommandPoolBase + 1 // 1001
+	CommandTimedSync           = CommandPoolBase + 2 // 1002
+	CommandPing                = CommandPoolBase + 3 // 1003
+	CommandRequestStatInfo     = CommandPoolBase + 4 // 1004
+	CommandRequestNetworkState = CommandPoolBase + 5 // 1005
+	CommandRequestPeerID       = CommandPoolBase + 6 // 1006
 )
 
 type BasicNodeData struct {
@@ -70,17 +70,6 @@ func (pe *PeerEntry) FromPeer(p *Peer) error {
 	return nil
 }
 
-type HandshakeRequest struct {
-	NodeData    BasicNodeData `binary:"node_data"`
-	PayloadData SyncData      `binary:"payload_data"`
-}
-
-type HandshakeResponse struct {
-	NodeData    BasicNodeData `binary:"node_data"`
-	PayloadData SyncData      `binary:"payload_data"`
-	Peers       []PeerEntry   `binary:"local_peerlist,binary"`
-}
-
 type TimedSyncRequest struct {
 	PayloadData SyncData `binary:"payload_data"`
 }
@@ -101,48 +90,6 @@ type PingResponse struct {
 var mapCommandStructs = map[uint32]interface{}{
 	CommandHandshake: HandshakeRequest{},
 	CommandTimedSync: TimedSyncRequest{},
-}
-
-func NewHandshakeRequest(bc *cryptonote.BlockChain) (*HandshakeRequest, error) {
-	syncData, err := newSyncData(bc)
-	if err != nil {
-		return nil, err
-	}
-
-	nodeData, err := newBasicNodeData(bc.Network)
-	if err != nil {
-		return nil, err
-	}
-
-	r := HandshakeRequest{
-		NodeData:    nodeData,
-		PayloadData: *syncData,
-	}
-
-	return &r, nil
-}
-
-func NewHandshakeResponse(h *Node) (*HandshakeResponse, error) {
-	peerList, err := newPeerEntryList(h)
-	if err != nil {
-		return nil, err
-	}
-
-	nodeData, err := newBasicNodeData(h.Blockchain.Network)
-	if err != nil {
-		return nil, err
-	}
-
-	payloadData, err := newSyncData(h.Blockchain)
-	if err != nil {
-		return nil, err
-	}
-
-	return &HandshakeResponse{
-		NodeData:    nodeData,
-		PayloadData: *payloadData,
-		Peers:       peerList,
-	}, nil
 }
 
 func newTimedSyncResponse(h *Node) (*TimedSyncResponse, error) {
