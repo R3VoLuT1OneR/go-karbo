@@ -8,7 +8,6 @@ import (
 	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"github.com/r3volut1oner/go-karbo/encoding/binary"
-	"github.com/signalsciences/ipv4"
 	"math/rand"
 	"reflect"
 	"time"
@@ -37,15 +36,6 @@ type SyncData struct {
 	TopBlockHash  crypto.Hash `binary:"top_id,binary"`
 }
 
-type NetworkAddress struct {
-	IP   uint32
-	Port uint32
-}
-
-func (na *NetworkAddress) String() string {
-	return fmt.Sprintf("%s:%d", ipv4.ToDots(na.IP), na.Port)
-}
-
 type PeerEntry struct {
 	Address  NetworkAddress
 	ID       uint64
@@ -53,16 +43,8 @@ type PeerEntry struct {
 }
 
 func (pe *PeerEntry) FromPeer(p *Peer) error {
-	IP, err := ipv4.FromNetIP(p.address.IP)
-	if err != nil {
-		return err
-	}
-
 	pe.ID = p.ID
-	pe.Address = NetworkAddress{
-		IP:   IP,
-		Port: uint32(p.address.Port),
-	}
+	pe.Address = p.address
 
 	// TODO: Get real last seen
 	pe.LastSeen = uint64(time.Now().Unix())

@@ -78,9 +78,10 @@ func (n *Node) Run(ctx context.Context) error {
 	n.wg.Add(1)
 	go n.runListener()
 
-	for _, seedAddr := range n.Config.Network.SeedNodes {
-		go n.syncWithAddr(seedAddr)
-	}
+	// TODO: Disabled only for check the listener
+	//for _, seedAddr := range n.Config.Network.SeedNodes {
+	//	go n.syncWithAddr(seedAddr)
+	//}
 
 	n.wg.Wait()
 	return nil
@@ -100,7 +101,7 @@ func (n *Node) runListener() {
 		default:
 			_ = n.listener.SetDeadline(time.Now().Add(time.Second * 5))
 
-			conn, err := n.listener.Accept()
+			conn, err := n.listener.AcceptTCP()
 			if err != nil {
 				if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 					time.Sleep(time.Second)
@@ -114,11 +115,11 @@ func (n *Node) runListener() {
 	}
 }
 
-func (n *Node) handleIncomingConnection(conn net.Conn) {
+func (n *Node) handleIncomingConnection(conn *net.TCPConn) {
 	// TODO: Enabling handling incoming connections
 	//return
 
-	peer := NewPeerFromIncomingConnection(n, conn)
+	peer := NewPeerFromIncomingConnection(conn)
 
 	//// TODO: Add peer to peerstore. Make sure it is not exists.
 	//
@@ -143,7 +144,7 @@ func (n *Node) listenForCommands(p *Peer) {
 		case PeerStateSyncRequired:
 			p.state = PeerStateSynchronizing
 
-			if err := p.requestChain(); err != nil {
+			if err := p.requestChain(n.Blockchain); err != nil {
 				n.logger.Errorf("failed to write request chain: %s", err)
 			}
 
@@ -232,7 +233,7 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 			return errors.New(fmt.Sprintf("[%s] request chain with 0 blocks", p))
 		}
 
-		genesisBlock, err := p.node.Blockchain.GenesisBlock()
+		genesisBlock, err := n.Blockchain.GenesisBlock()
 		if err != nil {
 			return fmt.Errorf("[%s] unexpected error: %w", p, err)
 		}
@@ -303,7 +304,7 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 			p.neededBlocks = append(p.neededBlocks, bh)
 		}
 
-		return p.requestMissingBlocks(false)
+		return p.requestMissingBlocks(n.Blockchain, false)
 	case NotificationResponseGetObjects:
 		notification := nt.(NotificationResponseGetObjects)
 
@@ -312,7 +313,7 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 			p, notification.CurrentBlockchainHeight,
 		)
 
-		return p.handleResponseGetObjects(notification)
+		return p.handleResponseGetObjects(n.Blockchain, notification)
 	default:
 		n.logger.Errorf("can't handle notification type: %s", reflect.TypeOf(nt))
 	}
@@ -328,28 +329,9 @@ func (n *Node) handleCommand(p *Peer, cmd *LevinCommand) error {
 
 	switch c.(type) {
 	case HandshakeRequest:
-		// TODO: Check peer network and rest of the data
-		handshakeRequest := c.(HandshakeRequest)
-		if handshakeRequest.NodeData.NetworkID != p.node.Config.Network.NetworkID {
-			return errors.New("wrong network on handshake")
-		}
-
-		// TODO: Send ping and make sure we can connect to the peer and add it to the white list.
-		//if err := p.processSyncData(c.(HandshakeRequest).PayloadData, true); err != nil {
-		//	return err
-		//}
-
-		n.logger.Debugf("[%v] handshake received", p.ID)
-
-		rsp, err := NewHandshakeResponse(n)
-		if err != nil {
+		if err := HandleHandshake(n, p, c.(HandshakeRequest), cmd); err != nil {
 			return err
 		}
-
-		if err := p.protocol.Reply(cmd.Command, *rsp, 1); err != nil {
-			return err
-		}
-
 	case TimedSyncRequest:
 		command := c.(TimedSyncRequest)
 		if err := p.processSyncData(command.PayloadData, false); err != nil {

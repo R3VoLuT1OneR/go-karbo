@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
+	"github.com/signalsciences/ipv4"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net"
+	"sync"
 )
 
 const (
@@ -21,16 +24,21 @@ const (
 	PeerStateShutdown
 )
 
+type NetworkAddress struct {
+	IP   uint32
+	Port uint32
+}
+
 type Peer struct {
 	// TODO: Make sure we generate local peer ID and updating external IDs
 	ID uint64
 
-	// Node to which peer connected to. Our main server node.
-	node    *Node
+	logger *log.Logger
+
 	version byte
 	state   byte
 
-	address *net.TCPAddr
+	address NetworkAddress
 
 	protocol *LevinProtocol
 
@@ -39,6 +47,17 @@ type Peer struct {
 
 	neededBlocks    crypto.HashList
 	requestedBlocks crypto.HashList
+
+	sync.RWMutex
+}
+
+func NetworkAddressFromTCPAddr(addr *net.TCPAddr) NetworkAddress {
+	IP, _ := ipv4.FromNetIP(addr.IP)
+
+	return NetworkAddress{
+		IP:   IP,
+		Port: uint32(addr.Port),
+	}
 }
 
 // NewPeerFromTCPAddress returns new peer from the IP address. Used for creating seed peers.
@@ -54,19 +73,18 @@ func NewPeerFromTCPAddress(ctx context.Context, n *Node, addr string) (*Peer, er
 	}
 
 	peer := Peer{
-		node:     n,
 		protocol: &LevinProtocol{conn},
-		address:  tcpAddr,
+		address:  NetworkAddressFromTCPAddr(tcpAddr),
 	}
 
 	return &peer, nil
 }
 
 // NewPeerFromIncomingConnection returns new seed from some incoming connection.
-func NewPeerFromIncomingConnection(node *Node, conn net.Conn) *Peer {
+func NewPeerFromIncomingConnection(conn *net.TCPConn) *Peer {
 	return &Peer{
-		node:     node,
 		protocol: &LevinProtocol{conn},
+		address:  NetworkAddressFromTCPAddr(conn.RemoteAddr().(*net.TCPAddr)),
 	}
 }
 
@@ -75,12 +93,12 @@ func (p *Peer) Shutdown() {
 }
 
 func (p *Peer) String() string {
-	return fmt.Sprintf("%s", p.address)
+	return fmt.Sprintf("%s", p.address.String())
 }
 
-func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error {
+func (p *Peer) handleResponseGetObjects(bc *cryptonote.BlockChain, nt NotificationResponseGetObjects) error {
 
-	p.node.logger.Tracef("[%s] response to get objects", p)
+	p.logger.Tracef("[%s] response to get objects", p)
 
 	if len(nt.Blocks) == 0 {
 		p.Shutdown()
@@ -107,7 +125,7 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 		if err := block.Deserialize(rawBlockReader); err != nil {
 			p.Shutdown()
 			// TODO: Remove this. It is debug only.
-			height := p.node.Blockchain.Height()
+			height := bc.Height()
 			blockHeight := height + uint32(i)
 			_ = ioutil.WriteFile(fmt.Sprintf("./block_%d.dat", blockHeight), rawBlock.Block, 0644)
 			return errors.New(
@@ -140,21 +158,19 @@ func (p *Peer) handleResponseGetObjects(nt NotificationResponseGetObjects) error
 		))
 	}
 
-	if err := p.processNewObjects(newObjects); err != nil {
+	if err := p.processNewObjects(bc, newObjects); err != nil {
 		return err
 	}
 
-	height := p.node.Blockchain.Height()
-	p.node.logger.Infof("process block, total height: %d", height)
+	height := bc.Height()
+	p.logger.Infof("process block, total height: %d", height)
 
-	return p.requestMissingBlocks(true)
+	return p.requestMissingBlocks(bc, true)
 }
 
-func (p *Peer) processNewObjects(objects map[*cryptonote.Block][][]byte) error {
-	core := p.node.Blockchain
-
+func (p *Peer) processNewObjects(bc *cryptonote.BlockChain, objects map[*cryptonote.Block][][]byte) error {
 	for block, transactions := range objects {
-		if err := core.AddBlock(block, transactions); err != nil {
+		if err := bc.AddBlock(block, transactions); err != nil {
 			return err
 			// TODO: Process proper error
 			//
@@ -227,13 +243,13 @@ func (p *Peer) ping() (*PingResponse, error) {
 	return &res, nil
 }
 
-func (p *Peer) requestChain() error {
-	n, err := newRequestChain(p.node.Blockchain)
+func (p *Peer) requestChain(bc *cryptonote.BlockChain) error {
+	n, err := newRequestChain(bc)
 	if err != nil {
 		return err
 	}
 
-	p.node.logger.Tracef("[%s] request chain %d (%d blocks) ", p, p.lastResponseHeight, len(n.Blocks))
+	p.logger.Tracef("[%s] request chain %d (%d blocks) ", p, p.lastResponseHeight, len(n.Blocks))
 
 	if err := p.protocol.Notify(NotificationRequestChainID, *n); err != nil {
 		return err
@@ -258,7 +274,7 @@ func (p *Peer) processSyncData(data SyncData, initial bool) error {
 	return nil
 }
 
-func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
+func (p *Peer) requestMissingBlocks(bc *cryptonote.BlockChain, checkHavingBlocks bool) error {
 	if len(p.neededBlocks) > 0 {
 		neededBlocks := p.neededBlocks
 		requestBlocks := crypto.HashList{}
@@ -266,7 +282,7 @@ func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
 		for len(neededBlocks) > 0 && len(requestBlocks) < MaxBlockSynchronization {
 			nb := neededBlocks[0]
 
-			haveBlock := p.node.Blockchain.HaveBlock(&nb)
+			haveBlock := bc.HaveBlock(&nb)
 
 			if !(checkHavingBlocks && haveBlock) {
 				requestBlocks = append(requestBlocks, nb)
@@ -288,7 +304,7 @@ func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
 
 		p.neededBlocks = neededBlocks
 	} else if p.lastResponseHeight < (p.remoteHeight - 1) {
-		if err := p.requestChain(); err != nil {
+		if err := p.requestChain(bc); err != nil {
 			return err
 		}
 	} else {
@@ -310,11 +326,15 @@ func (p *Peer) requestMissingBlocks(checkHavingBlocks bool) error {
 		// src/CryptoNoteProtocol/CryptoNoteProtocolHandler.cpp:907
 
 		p.state = PeerStateNormal
-		p.node.logger.Tracef("[%s] syncronized", p)
+		p.logger.Tracef("[%s] syncronized", p)
 
 		// TODO: On connection synchronized
 		// src/CryptoNoteProtocol/CryptoNoteProtocolHandler.cpp:911
 	}
 
 	return nil
+}
+
+func (na *NetworkAddress) String() string {
+	return fmt.Sprintf("%s:%d", ipv4.ToDots(na.IP), na.Port)
 }
