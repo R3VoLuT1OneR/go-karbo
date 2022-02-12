@@ -135,35 +135,6 @@ func (p *Peer) String() string {
 	return fmt.Sprintf("%s", p.address.String())
 }
 
-func (p *Peer) processNewObjects(bc *cryptonote.BlockChain, objects map[*cryptonote.Block][][]byte) error {
-	for block, transactions := range objects {
-		if err := bc.AddBlock(block, transactions); err != nil {
-			return err
-			// TODO: Process proper error
-			//
-			//if (addResult == error::AddBlockErrorCondition::BLOCK_VALIDATION_FAILED ||
-			//	addResult == error::AddBlockErrorCondition::TRANSACTION_VALIDATION_FAILED ||
-			//	addResult == error::AddBlockErrorCondition::DESERIALIZATION_FAILED) {
-			//	logger(Logging::DEBUGGING) << context << "Block verification failed, dropping connection: " << addResult.message();
-			//	m_p2p->drop_connection(context, true);
-			//	return 1;
-			//} else if (addResult == error::AddBlockErrorCondition::BLOCK_REJECTED) {
-			//	logger(Logging::DEBUGGING) << context << "Block received at sync phase was marked as orphaned, dropping connection: " << addResult.message();
-			//	m_p2p->drop_connection(context, true);
-			//	return 1;
-			//} else if (addResult == error::AddBlockErrorCode::ALREADY_EXISTS) {
-			//	logger(Logging::DEBUGGING) << context << "Block already exists, switching to idle state: " << addResult.message();
-			//	context.m_state = CryptoNoteConnectionContext::state_idle;
-			//	context.m_needed_objects.clear();
-			//	context.m_requested_objects.clear();
-			//	return 1;
-			//}
-		}
-	}
-
-	return nil
-}
-
 func (p *Peer) handshake(n *Node) (*HandshakeResponse, error) {
 	if p.state != PeerStateBeforeHandshake {
 		return nil, errors.New("state is not before handshake")

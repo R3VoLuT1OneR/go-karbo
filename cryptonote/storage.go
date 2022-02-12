@@ -25,6 +25,7 @@ type Storage interface {
 	// TopIndex of current saved blockchain
 	TopIndex() (uint32, error)
 
+	// TopBlock returns the best block
 	TopBlock() (*Block, error)
 
 	// AppendBlock to the blockchain storage.
@@ -32,6 +33,10 @@ type Storage interface {
 
 	// HaveBlock verifies that block is saved in DB
 	HaveBlock(*crypto.Hash) bool
+
+	// GetBlock returns block represented by provided hash.
+	// Returns nil if block not found.
+	GetBlock(*crypto.Hash) *Block
 
 	// HashAtIndex provides block by hash
 	// TODO: Review the need for this method. It is used in BuildSparseChain only maybe can be replaced

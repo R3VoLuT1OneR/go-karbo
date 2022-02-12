@@ -42,7 +42,8 @@ func (n *Node) HandleResponseGetObjects(p *Peer, nt NotificationResponseGetObjec
 
 	p.remoteHeight = nt.CurrentBlockchainHeight
 
-	newObjects := map[*cryptonote.Block][][]byte{}
+	orderedBlocks := make([]*cryptonote.Block, len(nt.Blocks))
+	transactions := map[crypto.Hash][][]byte{}
 	for i, rawBlock := range nt.Blocks {
 		block := cryptonote.Block{}
 		rawBlockReader := bytes.NewReader(rawBlock.Block)
@@ -72,7 +73,8 @@ func (n *Node) HandleResponseGetObjects(p *Peer, nt NotificationResponseGetObjec
 		}
 
 		p.requestedBlocks.Remove(hash)
-		newObjects[&block] = rawBlock.Transactions
+		transactions[*hash] = rawBlock.Transactions
+		orderedBlocks[i] = &block
 	}
 
 	if len(p.requestedBlocks) > 0 {
@@ -82,7 +84,7 @@ func (n *Node) HandleResponseGetObjects(p *Peer, nt NotificationResponseGetObjec
 		))
 	}
 
-	if err := p.processNewObjects(n.Blockchain, newObjects); err != nil {
+	if err := n.processNewObjects(orderedBlocks, transactions); err != nil {
 		return err
 	}
 

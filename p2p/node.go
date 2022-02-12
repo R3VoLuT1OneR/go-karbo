@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/r3volut1oner/go-karbo/config"
+	"github.com/r3volut1oner/go-karbo/crypto"
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"go.uber.org/zap"
 	"io"
@@ -419,6 +420,39 @@ func (n *Node) processSyncData(p *Peer, syncData SyncData, isInitial bool) error
 	// 	 m_peersCount++;
 	//	 m_observerManager.notify(&ICryptoNoteProtocolObserver::peerCountUpdated, m_peersCount.load());
 	// }
+
+	return nil
+}
+
+func (n *Node) processNewObjects(blocks []*cryptonote.Block, transactions map[crypto.Hash][][]byte) error {
+	for i, block := range blocks {
+		if _, ok := transactions[*block.Hash()]; !ok {
+			return errors.New(fmt.Sprintf("transactions for block at index %d not found", i))
+		}
+
+		if err := n.Blockchain.AddBlock(block, transactions[*block.Hash()]); err != nil {
+			return err
+			// TODO: Process proper error
+			//
+			//if (addResult == error::AddBlockErrorCondition::BLOCK_VALIDATION_FAILED ||
+			//	addResult == error::AddBlockErrorCondition::TRANSACTION_VALIDATION_FAILED ||
+			//	addResult == error::AddBlockErrorCondition::DESERIALIZATION_FAILED) {
+			//	logger(Logging::DEBUGGING) << context << "Block verification failed, dropping connection: " << addResult.message();
+			//	m_p2p->drop_connection(context, true);
+			//	return 1;
+			//} else if (addResult == error::AddBlockErrorCondition::BLOCK_REJECTED) {
+			//	logger(Logging::DEBUGGING) << context << "Block received at sync phase was marked as orphaned, dropping connection: " << addResult.message();
+			//	m_p2p->drop_connection(context, true);
+			//	return 1;
+			//} else if (addResult == error::AddBlockErrorCode::ALREADY_EXISTS) {
+			//	logger(Logging::DEBUGGING) << context << "Block already exists, switching to idle state: " << addResult.message();
+			//	context.m_state = CryptoNoteConnectionContext::state_idle;
+			//	context.m_needed_objects.clear();
+			//	context.m_requested_objects.clear();
+			//	return 1;
+			//}
+		}
+	}
 
 	return nil
 }

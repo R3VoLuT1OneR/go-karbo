@@ -111,7 +111,7 @@ func (bc *BlockChain) AddBlock(block *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	prevBlock := bc.getBlockByHash(&block.PreviousBlockHash)
+	prevBlock := bc.storage.GetBlock(&block.PreviousBlockHash)
 	if prevBlock == nil {
 		err := ErrAddBlockRejectedAsOrphaned
 		logger.Error(err)
@@ -315,7 +315,7 @@ func (bc *BlockChain) HaveBlock(hash *crypto.Hash) bool {
 // validateBlock validates block.
 // Returns and error if block not valid.
 func (bc *BlockChain) validateBlock(blogger *log.Entry, block *Block, prevBlock *Block) (uint64, error) {
-	if bc.Network.GetBlockMajorVersionForHeight(block.Index()) != block.MajorVersion {
+	if bc.Network.GetBlockMajorVersion(block.Index()) != block.MajorVersion {
 		err := ErrBlockValidationWrongVersion
 		blogger.Error(err)
 		return 0, err
@@ -363,20 +363,20 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, block *Block, prevBlock 
 		return 0, err
 	}
 
-	prevBlockHeight := prevBlock.Index()
-	if block.BaseTransaction.Inputs[0].(InputCoinbase).BlockIndex != prevBlockHeight {
+	prevBlockIndex := prevBlock.Index()
+	if block.BaseTransaction.Inputs[0].(InputCoinbase).BlockIndex != prevBlockIndex+1 {
 		err := ErrTransactionBaseInputWrongBlockIndex
 		blogger.Error(err)
 		return 0, err
 	}
 
-	if uint32(block.BaseTransaction.UnlockHeight) != prevBlockHeight+bc.Network.MinedMoneyUnlockWindow() {
+	if uint32(block.BaseTransaction.UnlockHeight) != prevBlockIndex+1+bc.Network.MinedMoneyUnlockWindow() {
 		err := ErrTransactionWrongUnlockTime
 		blogger.Error(err)
 		return 0, err
 	}
 
-	if len(block.BaseTransaction.TransactionSignatures) == 0 {
+	if len(block.BaseTransaction.TransactionSignatures) != 0 {
 		err := ErrTransactionBaseInvalidSignaturesCount
 		blogger.Error(err)
 		return 0, err
@@ -530,8 +530,8 @@ func (bc *BlockChain) deserializeTransactions(blogger *log.Entry, rt [][]byte) (
 
 // lastBlocksTimestamps fetches the timestamps of the
 func (bc *BlockChain) lastBlocksTimestamps(count int, b *Block) []uint64 {
-	var timestamps []uint64
-	var tempBlock = b
+	timestamps := []uint64{}
+	tempBlock := b
 
 	for count > 0 {
 		timestamps = append(timestamps, tempBlock.Timestamp)
@@ -540,7 +540,7 @@ func (bc *BlockChain) lastBlocksTimestamps(count int, b *Block) []uint64 {
 			break
 		}
 
-		tempBlock = bc.getBlockByHash(&tempBlock.PreviousBlockHash)
+		tempBlock = bc.storage.GetBlock(&tempBlock.PreviousBlockHash)
 		count--
 	}
 
@@ -573,7 +573,7 @@ func (bc *BlockChain) checkProofOfWork(block *Block, difficulty uint64) error {
 // getAlreadyGeneratedCoins returns generated coins on specified height
 // TODO: Implement
 func (bc *BlockChain) getAlreadyGeneratedCoins(height uint32) uint64 {
-	return uint64(0)
+	return uint64(38146972656250)
 }
 
 // GetLastBlocksSizes returns last block sizes
@@ -592,12 +592,6 @@ func (bc *BlockChain) IsSpent(image crypto.KeyImage, height uint32) bool {
 // TODO: Implement
 func (bc *BlockChain) ExtractKeyOutputKeys(amount uint64, height uint32, globalIndexes []uint32) ([]crypto.PublicKey, error) {
 	return nil, nil
-}
-
-// getBlockByHash fetch the block from block store
-// TODO: Implement
-func (bc *BlockChain) getBlockByHash(h *crypto.Hash) *Block {
-	return nil
 }
 
 // hasTransaction check if transaction is stored in blockchain already

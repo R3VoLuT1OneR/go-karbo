@@ -83,6 +83,13 @@ func (s *memoryStorage) HaveBlock(hash *crypto.Hash) bool {
 	return have
 }
 
+func (s *memoryStorage) GetBlock(hash *crypto.Hash) *Block {
+	s.RLock()
+	block := s.hashIndex[*hash]
+	s.RUnlock()
+	return block
+}
+
 func (s *memoryStorage) haveBlock(hash *crypto.Hash) bool {
 	if _, ok := s.hashIndex[*hash]; ok {
 		return true

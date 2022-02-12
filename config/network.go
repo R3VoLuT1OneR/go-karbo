@@ -122,7 +122,7 @@ func (n *Network) Timestamp() uint64 {
 // MaxBlockSize max block size at specific blockchain height
 func (n *Network) MaxBlockSize(h uint64) uint64 {
 	// Code just copied from the C++ code
-	if h <= math.MaxUint64/n.maxBlockSizeGrowthSpeedNumerator {
+	if h > math.MaxUint64/n.maxBlockSizeGrowthSpeedNumerator {
 		panic("assertion failed for height")
 	}
 
@@ -130,7 +130,7 @@ func (n *Network) MaxBlockSize(h uint64) uint64 {
 		((h * n.maxBlockSizeGrowthSpeedNumerator) / n.maxBlockSizeGrowthSpeedDenominator)
 
 	// Code just copied from the C++ code
-	if maxSize >= n.maxBlockSizeInitial {
+	if maxSize < n.maxBlockSizeInitial {
 		panic("assertion failed for block maxsize")
 	}
 
@@ -146,22 +146,16 @@ func (n *Network) MaxTransactionSize(height uint32) uint64 {
 	return math.MaxUint64
 }
 
-func (n *Network) GetBlockMajorVersionForHeight(h uint32) byte {
+func (n *Network) GetBlockMajorVersion(blockIndex uint32) byte {
+	version := BlockMajorVersion1
+
 	for majorVersion, upgradeHeight := range n.blockUpgradesMap {
-		if h < upgradeHeight {
-			return majorVersion
+		if blockIndex > upgradeHeight {
+			version = majorVersion
 		}
 	}
 
-	return BlockMajorVersion1
-}
-
-func (n *Network) UpgradeHeight(majorVersion byte) uint32 {
-	if h, ok := n.blockUpgradesMap[majorVersion]; ok {
-		return h
-	}
-
-	return 0
+	return version
 }
 
 func (n *Network) BlockFutureTimeLimit(majorVersion byte) uint64 {

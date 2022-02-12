@@ -12,7 +12,7 @@ func (bc *BlockChain) difficultyForNextBlock(b *Block) (uint64, error) {
 		return 0, errors.New(fmt.Sprintf("unknown block hashIndex %d, top hashIndex is %d", b.Index(), bc.bestTip.Index()))
 	}
 
-	nextBlockMajorVersion := bc.Network.GetBlockMajorVersionForHeight(b.Index())
+	nextBlockMajorVersion := bc.Network.GetBlockMajorVersion(b.Index())
 	difficultyBlocksCount := bc.Network.DifficultyBlocksCountByBlockVersion(nextBlockMajorVersion)
 
 	timestamps := bc.lastBlocksTimestamps(difficultyBlocksCount, b)
@@ -39,7 +39,7 @@ func (bc *BlockChain) lastBlocksCumulativeDifficulties(count int, b *Block) []ui
 			break
 		}
 
-		tempBlock = bc.getBlockByHash(&tempBlock.PreviousBlockHash)
+		tempBlock = bc.storage.GetBlock(&tempBlock.PreviousBlockHash)
 		count--
 	}
 
