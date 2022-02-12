@@ -238,25 +238,25 @@ func (p *Peer) processNewObjects(bc *cryptonote.BlockChain, objects map[*crypton
 	return nil
 }
 
-func (p *Peer) handshake(h *Node) (*HandshakeResponse, error) {
+func (p *Peer) handshake(n *Node) (*HandshakeResponse, error) {
 	if p.state != PeerStateBeforeHandshake {
 		return nil, errors.New("state is not before handshake")
 	}
 
 	var res HandshakeResponse
-	if err := p.protocol.Invoke(CommandHandshake, NewHandshakeRequest(h.Blockchain), &res); err != nil {
+	if err := p.protocol.Invoke(CommandHandshake, NewHandshakeRequest(n.Blockchain), &res); err != nil {
 		return nil, err
 	}
 
-	if h.Config.Network.NetworkID != res.NodeData.NetworkID {
+	if n.Config.Network.NetworkID != res.NodeData.NetworkID {
 		return nil, errors.New("wrong network id received")
 	}
 
-	if h.Config.Network.P2PMinimumVersion < res.NodeData.Version {
+	if n.Config.Network.P2PMinimumVersion < res.NodeData.Version {
 		return nil, errors.New("node data version not match minimal")
 	}
 
-	if err := p.processSyncData(res.PayloadData, true); err != nil {
+	if err := n.processSyncData(p, res.PayloadData, true); err != nil {
 		return nil, err
 	}
 
@@ -290,22 +290,6 @@ func (p *Peer) requestChain(bc *cryptonote.BlockChain) error {
 	if err := p.protocol.Notify(NotificationRequestChainID, *n); err != nil {
 		return err
 	}
-
-	return nil
-}
-
-func (p *Peer) processSyncData(data SyncData, initial bool) error {
-	// TODO: Implement sync data
-	if p.state == PeerStateBeforeHandshake && !initial {
-		return nil
-	}
-
-	if p.state == PeerStateSynchronizing {
-	} else {
-		p.state = PeerStateSyncRequired
-	}
-
-	p.remoteHeight = data.CurrentHeight
 
 	return nil
 }

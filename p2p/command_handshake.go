@@ -42,6 +42,9 @@ func NewHandshakeResponse(bc *cryptonote.BlockChain, peerEntries []PeerEntry) Ha
 	}
 }
 
+// HandleHandshake checking the handshake request and responding to the request.
+//
+// Handshake is needed to make sure connecting server running on same network using same version, etc.
 func (n *Node) HandleHandshake(p *Peer, req HandshakeRequest) error {
 	p.procMutex.Lock()
 	defer p.procMutex.Unlock()
@@ -74,7 +77,9 @@ func (n *Node) HandleHandshake(p *Peer, req HandshakeRequest) error {
 
 	p.SetID(req.NodeData.PeerID)
 
-	if err := p.processSyncData(req.PayloadData, true); err != nil {
+	p.logger.Debug("handshake received")
+
+	if err := n.processSyncData(p, req.PayloadData, true); err != nil {
 		err := ErrHandshakeProcessSyncData
 		p.Shutdown()
 		return err
@@ -82,6 +87,5 @@ func (n *Node) HandleHandshake(p *Peer, req HandshakeRequest) error {
 
 	// TODO: Send ping and make sure we can connect to the peer and add it to the white list.
 
-	p.logger.Debug("handshake received")
 	return nil
 }

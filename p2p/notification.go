@@ -11,16 +11,16 @@ import (
 )
 
 const (
-	NotificationBoolBase             = 2000
-	NotificationNewBlockID           = NotificationBoolBase + 1
-	NotificationNewTransactionsID    = NotificationBoolBase + 2
-	NotificationRequestGetObjectsID  = NotificationBoolBase + 3
-	NotificationResponseGetObjectsID = NotificationBoolBase + 4
-	NotificationRequestChainID       = NotificationBoolBase + 6
-	NotificationResponseChainEntryID = NotificationBoolBase + 7
-	NotificationTxPoolID             = NotificationBoolBase + 8
-	NotificationNewLiteBlockID       = NotificationBoolBase + 9
-	NotificationMissingTxsID         = NotificationBoolBase + 10
+	NotificationBoolBase             = 2000                      // 2000
+	NotificationNewBlockID           = NotificationBoolBase + 1  // 2001
+	NotificationNewTransactionsID    = NotificationBoolBase + 2  // 2002
+	NotificationRequestGetObjectsID  = NotificationBoolBase + 3  // 2003
+	NotificationResponseGetObjectsID = NotificationBoolBase + 4  // 2004
+	NotificationRequestChainID       = NotificationBoolBase + 6  // 2006
+	NotificationResponseChainEntryID = NotificationBoolBase + 7  // 2007
+	NotificationTxPoolID             = NotificationBoolBase + 8  // 2008
+	NotificationNewLiteBlockID       = NotificationBoolBase + 9  // 2009
+	NotificationMissingTxsID         = NotificationBoolBase + 10 // 2010
 )
 
 type RawBlock struct {

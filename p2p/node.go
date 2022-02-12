@@ -8,6 +8,7 @@ import (
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"go.uber.org/zap"
 	"io"
+	"math"
 	"math/rand"
 	"net"
 	"reflect"
@@ -125,7 +126,7 @@ func (n *Node) handleIncomingConnection(conn *net.TCPConn) {
 	n.wg.Add(1)
 	defer n.wg.Done()
 
-	n.listenForCommands(peer)
+	n.peerProcessingLoop(peer)
 
 	if err := n.ps.toGrey(peer); err != nil {
 		n.logger.Warnf("peer remove failed: %s", err)
@@ -134,7 +135,7 @@ func (n *Node) handleIncomingConnection(conn *net.TCPConn) {
 	n.logger.Debugf("[%16x] sync closed", peer.ID)
 }
 
-func (n *Node) listenForCommands(p *Peer) {
+func (n *Node) peerProcessingLoop(p *Peer) {
 	for {
 		// Peer state changes asynchronously after handling some commands.
 		// Here we are taking care of handle different peer statuses.
@@ -338,7 +339,7 @@ func (n *Node) handleCommand(p *Peer, cmd *LevinCommand) error {
 		}
 	case TimedSyncRequest:
 		command := c.(TimedSyncRequest)
-		if err := p.processSyncData(command.PayloadData, false); err != nil {
+		if err := n.processSyncData(p, command.PayloadData, false); err != nil {
 			return err
 		}
 
@@ -357,6 +358,85 @@ func (n *Node) handleCommand(p *Peer, cmd *LevinCommand) error {
 	}
 
 	return nil
+}
+
+// processSyncData processing remote sync data
+//
+// This method is safe for concurrent calls.
+func (n *Node) processSyncData(p *Peer, syncData SyncData, isInitial bool) error {
+	p.Lock()
+	defer p.Unlock()
+
+	// Ignore all not initial requests
+	if p.state == PeerStateBeforeHandshake && !isInitial {
+		return nil
+	}
+
+	if p.state == PeerStateSynchronizing {
+	} else if n.Blockchain.HaveBlock(&syncData.TopBlockHash) {
+		if isInitial {
+			n.onSynchronized()
+			p.state = PeerStatePoolSyncRequired
+		} else {
+			p.state = PeerStateNormal
+		}
+	} else {
+		height := n.Blockchain.Height()
+
+		diff := int64(syncData.CurrentHeight) - int64(height)
+		if diff < 0 && uint32(math.Abs(float64(diff))) > n.Blockchain.Network.MinedMoneyUnlockWindow() {
+			if n.Blockchain.Network.Checkpoints.IsInCheckpointZone(syncData.CurrentHeight) {
+
+				p.logger.Debugf(
+					"Sync data return a new top block candidate: %d -> %d\nYour node is %d blocks ahead.\n"+
+						"The block candidate is too deep behind and in checkpoint zone, dropping connection",
+					height,
+					syncData.CurrentHeight,
+					uint32(math.Abs(float64(diff))),
+				)
+
+				n.addHostFail(p.address)
+				p.Shutdown()
+
+				return ErrSyncDataTooDeepBehind
+			}
+		}
+
+		p.logger.Infof(
+			"Sync data returned a new top block candidate: %d -> %d\n"+
+				"Your node is %d blocks behind/ahead. Synchronization started.",
+			height,
+			syncData.CurrentHeight,
+			uint32(math.Abs(float64(diff))),
+		)
+
+		p.state = PeerStateSyncRequired
+	}
+
+	n.updateObservedHeight(p, syncData.CurrentHeight)
+	p.remoteHeight = syncData.CurrentHeight
+
+	// TODO: Implement notification
+	// if (is_initial) {
+	// 	 m_peersCount++;
+	//	 m_observerManager.notify(&ICryptoNoteProtocolObserver::peerCountUpdated, m_peersCount.load());
+	// }
+
+	return nil
+}
+
+// TODO: Implement CryptoNoteProtocolHandler::updateObservedHeight
+func (n *Node) updateObservedHeight(p *Peer, height uint32) {
+}
+
+// TODO: Implement NodeServer::add_host_fail and rename this method
+func (n *Node) addHostFail(address NetworkAddress) {
+}
+
+// TODO: Implement on_connection_synchronized
+func (n *Node) onSynchronized() {
+	// CryptoNoteProtocolHandler::on_connection_synchronized
+	// LINE: 916
 }
 
 func (n *Node) defaults() {
@@ -410,7 +490,7 @@ func (n *Node) syncWithAddr(addr string) {
 	//	go n.syncWithAddr(c, pe.Address.String())
 	//}
 
-	n.listenForCommands(peer)
+	n.peerProcessingLoop(peer)
 
 	if err := n.ps.toGrey(peer); err != nil {
 		n.logger.Warnf("peer remove failed: %s", err)
