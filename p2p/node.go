@@ -126,7 +126,7 @@ func (n *Node) handleIncomingConnection(conn *net.TCPConn) {
 	n.wg.Add(1)
 	defer n.wg.Done()
 
-	n.peerProcessingLoop(peer)
+	n.connectionHandler(peer)
 
 	if err := n.ps.toGrey(peer); err != nil {
 		n.logger.Warnf("peer remove failed: %s", err)
@@ -135,7 +135,7 @@ func (n *Node) handleIncomingConnection(conn *net.TCPConn) {
 	n.logger.Debugf("[%16x] sync closed", peer.ID)
 }
 
-func (n *Node) peerProcessingLoop(p *Peer) {
+func (n *Node) connectionHandler(p *Peer) {
 	for {
 		// Peer state changes asynchronously after handling some commands.
 		// Here we are taking care of handle different peer statuses.
@@ -144,7 +144,7 @@ func (n *Node) peerProcessingLoop(p *Peer) {
 		case PeerStateSyncRequired:
 			p.state = PeerStateSynchronizing
 
-			if err := p.requestChain(n.Blockchain); err != nil {
+			if err := n.NotifyRequestChain(p); err != nil {
 				n.logger.Errorf("failed to write request chain: %s", err)
 			}
 
@@ -198,7 +198,7 @@ func (n *Node) peerProcessingLoop(p *Peer) {
 //
 // Receive notification from remote peer and handle it depend on the notification code.
 func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
-	n.logger.Debugf("[%s] handeling notification: %d", p, cmd.Command)
+	p.logger.Debugf("handeling notification: %d", cmd.Command)
 
 	// TODO: This part of the code can be used for debug
 	//cwd, err := os.Getwd()
@@ -220,10 +220,10 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 	}
 
 	switch nt.(type) {
-	case NotificationTxPool:
+	case NotificationTxPool: // 2008
 		notification := nt.(NotificationTxPool)
 
-		n.logger.Debugf("[%s] notification tx pool, size: %d", p, len(notification.Transactions))
+		p.logger.Debugf("notification tx pool, size: %d", len(notification.Transactions))
 	case NotificationRequestChain:
 		notification := nt.(NotificationRequestChain)
 
@@ -256,16 +256,17 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 		//}
 
 		n.logger.Debugf("[%s] request chain %d blocks.", p, len(notification.Blocks))
-	case NotificationResponseChainEntry:
+	case NotificationResponseChainEntry: // 2007
 		notification := nt.(NotificationResponseChainEntry)
 
-		n.logger.Debugf(
-			"[%s] notification response chain entry, start: %d, total: %d, blocks: %d",
-			p, notification.StartHeight, notification.TotalHeight, len(notification.BlocksHashes),
+		p.logger.Debugf(
+			"notification response chain entry, start: %d, blocks: %d, total: %d",
+			notification.StartHeight, len(notification.BlocksHashes), notification.TotalHeight,
 		)
 
 		if len(notification.BlocksHashes) == 0 {
 			p.Shutdown()
+			// TODO: Create new error instance
 			return errors.New(fmt.Sprintf("[%s] received empty blocks in response chain enrty", p))
 		}
 
@@ -274,6 +275,7 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 
 		if !hasFirstBlock {
 			p.Shutdown()
+			// TODO: Create new error instance
 			return errors.New(fmt.Sprintf("[%s] hash %s missing in our blockchain", p, firstHash.String()))
 		}
 
@@ -281,6 +283,7 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 		p.lastResponseHeight = notification.StartHeight + uint32(len(notification.BlocksHashes)-1)
 
 		if p.lastResponseHeight > p.remoteHeight {
+			// TODO: Create new error instance
 			p.Shutdown()
 			return errors.New(
 				fmt.Sprintf(
@@ -304,16 +307,11 @@ func (n *Node) handleNotification(p *Peer, cmd *LevinCommand) error {
 			p.neededBlocks = append(p.neededBlocks, bh)
 		}
 
-		return p.requestMissingBlocks(n.Blockchain, false)
-	case NotificationResponseGetObjects:
+		return p.requestMissingBlocks(n, false)
+	case NotificationResponseGetObjects: // 2004
 		notification := nt.(NotificationResponseGetObjects)
 
-		n.logger.Debugf(
-			"[%s] NotificationResponseGetObjects, height: %d",
-			p, notification.CurrentBlockchainHeight,
-		)
-
-		return p.handleResponseGetObjects(n.Blockchain, notification)
+		return n.HandleResponseGetObjects(p, notification)
 	default:
 		n.logger.Errorf("can't handle notification type: %s", reflect.TypeOf(nt))
 	}
@@ -490,7 +488,7 @@ func (n *Node) syncWithAddr(addr string) {
 	//	go n.syncWithAddr(c, pe.Address.String())
 	//}
 
-	n.peerProcessingLoop(peer)
+	n.connectionHandler(peer)
 
 	if err := n.ps.toGrey(peer); err != nil {
 		n.logger.Warnf("peer remove failed: %s", err)

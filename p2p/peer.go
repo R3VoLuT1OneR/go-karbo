@@ -1,7 +1,6 @@
 package p2p
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,7 +8,6 @@ import (
 	"github.com/r3volut1oner/go-karbo/cryptonote"
 	"github.com/signalsciences/ipv4"
 	"go.uber.org/zap"
-	"io/ioutil"
 	"net"
 	"strconv"
 	"sync"
@@ -137,78 +135,6 @@ func (p *Peer) String() string {
 	return fmt.Sprintf("%s", p.address.String())
 }
 
-func (p *Peer) handleResponseGetObjects(bc *cryptonote.BlockChain, nt NotificationResponseGetObjects) error {
-
-	p.logger.Debugf("[%s] response to get objects", p)
-
-	if len(nt.Blocks) == 0 {
-		p.Shutdown()
-		return errors.New(fmt.Sprintf("[%s] got zero blocks on get objects", p))
-	}
-
-	if p.lastResponseHeight > nt.CurrentBlockchainHeight {
-		p.Shutdown()
-		return errors.New(fmt.Sprintf(
-			"[%s] got wrong currentBlockchainHeight = %d, current = %d", p,
-			nt.CurrentBlockchainHeight,
-			p.lastResponseHeight,
-		))
-	}
-
-	// TODO: Implement P2P Node observable height (max observed height) and update it if new observed height is found.
-
-	p.remoteHeight = nt.CurrentBlockchainHeight
-
-	newObjects := map[*cryptonote.Block][][]byte{}
-	for i, rawBlock := range nt.Blocks {
-		block := cryptonote.Block{}
-		rawBlockReader := bytes.NewReader(rawBlock.Block)
-		if err := block.Deserialize(rawBlockReader); err != nil {
-			p.Shutdown()
-			// TODO: Remove this. It is debug only.
-			height := bc.Height()
-			blockHeight := height + uint32(i)
-			_ = ioutil.WriteFile(fmt.Sprintf("./block_%d.dat", blockHeight), rawBlock.Block, 0644)
-			return errors.New(
-				fmt.Sprintf("[%s] (%d) failed to convert raw block (%d): %s", p, i, blockHeight, err),
-			)
-		}
-
-		hash := block.Hash()
-		if !p.requestedBlocks.Has(hash) {
-			p.Shutdown()
-			return errors.New(fmt.Sprintf("[%s] got not requested block #%d '%s'", p, i, hash.String()))
-		}
-
-		if len(block.TransactionsHashes) != len(rawBlock.Transactions) {
-			p.Shutdown()
-			return errors.New(fmt.Sprintf(
-				"[%s] got wrong block transactions size. block: %s block tx: %d raw tx: %d",
-				p, hash.String(), len(block.TransactionsHashes), len(rawBlock.Transactions),
-			))
-		}
-
-		p.requestedBlocks.Remove(hash)
-		newObjects[&block] = rawBlock.Transactions
-	}
-
-	if len(p.requestedBlocks) > 0 {
-		p.Shutdown()
-		return errors.New(fmt.Sprintf(
-			"[%s] got not all requested objectes, missing %d", p, len(p.requestedBlocks),
-		))
-	}
-
-	if err := p.processNewObjects(bc, newObjects); err != nil {
-		return err
-	}
-
-	height := bc.Height()
-	p.logger.Infof("process block, total height: %d", height)
-
-	return p.requestMissingBlocks(bc, true)
-}
-
 func (p *Peer) processNewObjects(bc *cryptonote.BlockChain, objects map[*cryptonote.Block][][]byte) error {
 	for block, transactions := range objects {
 		if err := bc.AddBlock(block, transactions); err != nil {
@@ -280,7 +206,7 @@ func (p *Peer) ping() (*PingResponse, error) {
 }
 
 func (p *Peer) requestChain(bc *cryptonote.BlockChain) error {
-	n, err := newRequestChain(bc)
+	n, err := NewRequestChain(bc)
 	if err != nil {
 		return err
 	}
@@ -294,7 +220,7 @@ func (p *Peer) requestChain(bc *cryptonote.BlockChain) error {
 	return nil
 }
 
-func (p *Peer) requestMissingBlocks(bc *cryptonote.BlockChain, checkHavingBlocks bool) error {
+func (p *Peer) requestMissingBlocks(n *Node, checkHavingBlocks bool) error {
 	if len(p.neededBlocks) > 0 {
 		neededBlocks := p.neededBlocks
 		requestBlocks := crypto.HashList{}
@@ -302,7 +228,7 @@ func (p *Peer) requestMissingBlocks(bc *cryptonote.BlockChain, checkHavingBlocks
 		for len(neededBlocks) > 0 && len(requestBlocks) < MaxBlockSynchronization {
 			nb := neededBlocks[0]
 
-			haveBlock := bc.HaveBlock(&nb)
+			haveBlock := n.Blockchain.HaveBlock(&nb)
 
 			if !(checkHavingBlocks && haveBlock) {
 				requestBlocks = append(requestBlocks, nb)
@@ -324,7 +250,7 @@ func (p *Peer) requestMissingBlocks(bc *cryptonote.BlockChain, checkHavingBlocks
 
 		p.neededBlocks = neededBlocks
 	} else if p.lastResponseHeight < (p.remoteHeight - 1) {
-		if err := p.requestChain(bc); err != nil {
+		if err := p.requestChain(n.Blockchain); err != nil {
 			return err
 		}
 	} else {

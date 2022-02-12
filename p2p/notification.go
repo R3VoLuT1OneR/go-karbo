@@ -44,14 +44,6 @@ type NotificationRequestGetObjects struct {
 	Blocks       []crypto.Hash `binary:"blocks,binary"`
 }
 
-type NotificationResponseGetObjects struct {
-	// Exists in old legacy code in definition but not exists in notification
-	Transactions            []string      `binary:"txs,omitempty"`
-	Blocks                  []RawBlock    `binary:"blocks,array"`
-	CurrentBlockchainHeight uint32        `binary:"current_blockchain_height"`
-	MissedIds               []crypto.Hash `binary:"missed_ids,binary,omitempty"`
-}
-
 type NotificationTxPool struct {
 	Transactions []crypto.Hash `binary:"txs"`
 }
@@ -62,10 +54,7 @@ type NotificationNewLiteBlock struct {
 	Block                   []byte `binary:"block"`
 }
 
-type NotificationRequestChain struct {
-	Blocks []crypto.Hash `binary:"block_ids,binary"`
-}
-
+// NotificationResponseChainEntry = 2007
 type NotificationResponseChainEntry struct {
 	StartHeight  uint32        `binary:"start_height"`
 	TotalHeight  uint32        `binary:"total_height"`
@@ -95,15 +84,6 @@ func parseNotification(lc *LevinCommand) (interface{}, error) {
 	}
 
 	return nil, errors.New(fmt.Sprintf("unknown notification ID: %d", lc.Command))
-}
-
-func newRequestChain(bc *cryptonote.BlockChain) (*NotificationRequestChain, error) {
-	list, err := bc.BuildSparseChain()
-	if err != nil {
-		return nil, err
-	}
-
-	return &NotificationRequestChain{list}, nil
 }
 
 func (rb *RawBlock) ToBlock() (*cryptonote.Block, error) {
