@@ -92,7 +92,7 @@ const (
 	coinVersionV1      = 1
 
 	emissionSpeedFactor = 18
-	rewardBlocksWindow  = 100
+	rewardBlocksWindow  = uint32(100)
 )
 
 var PrettyAmounts = [172]uint64{

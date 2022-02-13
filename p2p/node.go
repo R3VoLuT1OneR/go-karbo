@@ -384,7 +384,7 @@ func (n *Node) processSyncData(p *Peer, syncData SyncData, isInitial bool) error
 
 		diff := int64(syncData.CurrentHeight) - int64(height)
 		if diff < 0 && uint32(math.Abs(float64(diff))) > n.Blockchain.Network.MinedMoneyUnlockWindow() {
-			if n.Blockchain.Network.Checkpoints.IsInCheckpointZone(syncData.CurrentHeight) {
+			if n.Blockchain.Checkpoints.IsInCheckpointZone(syncData.CurrentHeight) {
 
 				p.logger.Debugf(
 					"Sync data return a new top block candidate: %d -> %d\nYour node is %d blocks ahead.\n"+

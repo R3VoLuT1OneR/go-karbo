@@ -28,8 +28,8 @@ type Storage interface {
 	// TopBlock returns the best block
 	TopBlock() (*Block, error)
 
-	// AppendBlock to the blockchain storage.
-	AppendBlock(*Block) error
+	// PushBlock to the blockchain storage.
+	PushBlock(*Block, *blockInfo) error
 
 	// HaveBlock verifies that block is saved in DB
 	HaveBlock(*crypto.Hash) bool
@@ -58,4 +58,10 @@ type Storage interface {
 	//IsEmpty() (bool, error)
 	//
 
+	/**
+	 * Methods that must be used only in cryptonote package
+	 */
+
+	// getBlockInfoAtIndex return block info at specified index
+	getBlockInfoAtIndex(index uint32) *blockInfo
 }

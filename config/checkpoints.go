@@ -33,8 +33,9 @@ type Checkpoints interface {
 
 func NewCheckpoints(logger *log.Logger) Checkpoints {
 	return &checkpoints{
-		logger: logger,
-		points: map[uint32]crypto.Hash{},
+		logger:       logger,
+		points:       map[uint32]crypto.Hash{},
+		pointsSorted: []uint32{},
 	}
 }
 
@@ -74,6 +75,11 @@ func (cp *checkpoints) AddCheckpoint(index uint32, hash crypto.Hash) error {
 func (cp *checkpoints) IsInCheckpointZone(index uint32) bool {
 	cp.Lock()
 	defer cp.Unlock()
+
+	// No checkpoints added
+	if len(cp.pointsSorted) == 0 {
+		return false
+	}
 
 	maxHeight := cp.pointsSorted[len(cp.pointsSorted)-1]
 	return maxHeight != 0 && index <= maxHeight

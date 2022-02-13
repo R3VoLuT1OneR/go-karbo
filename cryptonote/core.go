@@ -98,7 +98,7 @@ package cryptonote
 //	// TODO Fetch top hashIndex block from current segment
 //	// bool addOnTop = cache->getTopBlockIndex() == previousBlockIndex;
 //
-//	if err := c.storage.AppendBlock(b); err != nil {
+//	if err := c.storage.PushBlock(b); err != nil {
 //		return err
 //	}
 //

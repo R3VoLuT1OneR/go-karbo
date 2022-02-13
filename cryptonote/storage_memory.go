@@ -10,11 +10,14 @@ import (
 
 type memoryStorage struct {
 
-	// hashIndex keeps the block height for specific hash
+	// hashIndex keeps the block index for specific hash
 	hashIndex map[crypto.Hash]*Block
 
-	// blockIndex keeps block hash for specific height
+	// blockIndex keeps block hash for specific index
 	blockIndex map[uint32]*Block
+
+	// blockInfos keeps block infos for specific index
+	blockInfos map[uint32]*blockInfo
 
 	topBlock *Block
 
@@ -25,11 +28,19 @@ func NewMemoryStorage() Storage {
 	return &memoryStorage{
 		hashIndex:  map[crypto.Hash]*Block{},
 		blockIndex: map[uint32]*Block{},
+		blockInfos: map[uint32]*blockInfo{},
 	}
 }
 
 func (s *memoryStorage) Init(genesisBlock *Block) error {
-	err := s.AppendBlock(genesisBlock)
+	info := blockInfo{
+		Index:                0,
+		CumulativeDifficulty: 1,
+		Size:                 genesisBlock.BaseTransaction.Size(),
+		TotalGeneratedCoins:  genesisBlock.BaseTransaction.Outputs[0].Amount,
+	}
+
+	err := s.PushBlock(genesisBlock, &info)
 	return err
 }
 
@@ -47,7 +58,14 @@ func (s *memoryStorage) TopBlock() (*Block, error) {
 	return block, nil
 }
 
-func (s *memoryStorage) appendBlock(block *Block) error {
+func (s *memoryStorage) PushBlock(block *Block, info *blockInfo) error {
+	s.Lock()
+	err := s.appendBlock(block, info)
+	s.Unlock()
+	return err
+}
+
+func (s *memoryStorage) appendBlock(block *Block, info *blockInfo) error {
 	hash := block.Hash()
 	index := block.Index()
 
@@ -61,19 +79,13 @@ func (s *memoryStorage) appendBlock(block *Block) error {
 
 	s.hashIndex[*hash] = block
 	s.blockIndex[index] = block
+	s.blockInfos[index] = info
 
 	if s.topBlock == nil || index > s.topBlock.Index() {
 		s.topBlock = block
 	}
 
 	return nil
-}
-
-func (s *memoryStorage) AppendBlock(block *Block) error {
-	s.Lock()
-	err := s.appendBlock(block)
-	s.Unlock()
-	return err
 }
 
 func (s *memoryStorage) HaveBlock(hash *crypto.Hash) bool {
@@ -107,6 +119,13 @@ func (s *memoryStorage) HashAtIndex(index uint32) (*crypto.Hash, error) {
 	}
 
 	return nil, nil
+}
+
+func (s *memoryStorage) getBlockInfoAtIndex(index uint32) *blockInfo {
+	s.RLock()
+	info := s.blockInfos[index]
+	s.RUnlock()
+	return info
 }
 
 func (s *memoryStorage) Close() error {

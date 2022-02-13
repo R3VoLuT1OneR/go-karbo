@@ -3,7 +3,7 @@ package cryptonote
 import (
 	"errors"
 	"fmt"
-	"github.com/r3volut1oner/go-karbo/crypto"
+	"github.com/r3volut1oner/go-karbo/utils"
 )
 
 // difficultyForNextBlock calculates difficulty for the next block.
@@ -15,33 +15,29 @@ func (bc *BlockChain) difficultyForNextBlock(b *Block) (uint64, error) {
 	nextBlockMajorVersion := bc.Network.GetBlockMajorVersion(b.Index())
 	difficultyBlocksCount := bc.Network.DifficultyBlocksCountByBlockVersion(nextBlockMajorVersion)
 
-	timestamps := bc.lastBlocksTimestamps(difficultyBlocksCount, b)
-	cumulativeDifficulties := bc.lastBlocksCumulativeDifficulties(difficultyBlocksCount, b)
+	timestamps := bc.lastBlocksTimestamps(difficultyBlocksCount, b, false)
+	cumulativeDifficulties := bc.lastBlocksCumulativeDifficulties(difficultyBlocksCount, b.Index(), false)
 
 	return bc.Network.NextDifficulty(b.Index(), nextBlockMajorVersion, timestamps, cumulativeDifficulties)
 }
 
-// TODO: Implement
-// blockCumulativeDifficulty returns cumulative difficulty for specific block
-func (bc *BlockChain) blockCumulativeDifficulty(b *Block) uint64 {
-	return 0
-}
+func (bc *BlockChain) lastBlocksCumulativeDifficulties(count uint32, index uint32, addGenesisBlock bool) []uint64 {
+	difficulties := []uint64{}
 
-// TODO: Refactor make sure it is running fast
-func (bc *BlockChain) lastBlocksCumulativeDifficulties(count int, b *Block) []uint64 {
-	var difficulties []uint64
-	var tempBlock = b
-
-	for count > 0 {
-		difficulties = append(difficulties, bc.blockCumulativeDifficulty(tempBlock))
-
-		if tempBlock.PreviousBlockHash == (crypto.Hash{}) {
+	tempInfo := bc.storage.getBlockInfoAtIndex(index)
+	for i := uint32(1); i <= count; i++ {
+		if tempInfo == nil {
 			break
 		}
 
-		tempBlock = bc.storage.GetBlock(&tempBlock.PreviousBlockHash)
+		if !addGenesisBlock && tempInfo.Index == 0 {
+			break
+		}
+
+		difficulties = append(difficulties, tempInfo.CumulativeDifficulty)
+		tempInfo = bc.storage.getBlockInfoAtIndex(index - i)
 		count--
 	}
 
-	return difficulties
+	return utils.SliceReverse(difficulties)
 }

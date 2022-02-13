@@ -68,7 +68,7 @@ package cryptonote
 //	height, err := db.GetBlockIndexByHash(genesisHash)
 //
 //	if err == ErrBlockNotFound {
-//		if err := db.AppendBlock(genesisBlock); err != nil {
+//		if err := db.PushBlock(genesisBlock); err != nil {
 //			return err
 //		}
 //	} else if err != nil {
@@ -84,7 +84,7 @@ package cryptonote
 //	return nil, nil
 //}
 //
-//func (db *badgerDB) AppendBlock(b *Block) error {
+//func (db *badgerDB) PushBlock(b *Block) error {
 //	hash := b.Hash()
 //	payload := b.Serialize()
 //

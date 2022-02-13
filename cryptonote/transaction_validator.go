@@ -150,7 +150,7 @@ func (validator *blockTransactionsValidator) validateInputs(transaction *Transac
 			// so first can be zero, others can't.
 			// Fix discovered by Monero Lab and suggested by "fluffypony" (bitcointalk.org).
 			// Skip this expensive validation in checkpoints zone.
-			if !validator.bc.Network.Checkpoints.IsInCheckpointZone(validator.blockIndex + 1) {
+			if !validator.bc.Checkpoints.IsInCheckpointZone(validator.blockIndex + 1) {
 				multiplied, err := input.KeyImage.ScalarMult(&LImage)
 
 				if err != nil || *multiplied != IImage {
@@ -400,7 +400,7 @@ func (validator *blockTransactionsValidator) validateTransactionInputExpensive(t
 	// in a checkpoints range - they are assumed valid, and the transaction
 	// hash would change thus invalidation the checkpoints if not.
 
-	if validator.bc.Network.Checkpoints.IsInCheckpointZone(validator.blockIndex) {
+	if validator.bc.Checkpoints.IsInCheckpointZone(validator.blockIndex) {
 		return nil
 	}
 

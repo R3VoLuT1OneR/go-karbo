@@ -13,8 +13,6 @@ import (
 
 // Network represents network params
 type Network struct {
-	Checkpoints Checkpoints
-
 	NetworkID uuid.UUID
 
 	MaxBlockNumber   uint64
@@ -166,7 +164,7 @@ func (n *Network) BlockFutureTimeLimit(majorVersion byte) uint64 {
 	return blockFutureTimeLimit
 }
 
-func (n *Network) BlockTimestampCheckWindow(majorVersion byte) int {
+func (n *Network) BlockTimestampCheckWindow(majorVersion byte) uint32 {
 	if majorVersion >= BlockMajorVersion4 {
 		return blockTimestampCheckWindowV1
 	}
@@ -198,7 +196,11 @@ func (n *Network) MinedMoneyUnlockWindow() uint32 {
 	return minedMoneyUnlockWindow
 }
 
-func (n *Network) DifficultyBlocksCountByBlockVersion(majorVersion byte) int {
+func (n *Network) RewardBlockWindow() uint32 {
+	return rewardBlocksWindow
+}
+
+func (n *Network) DifficultyBlocksCountByBlockVersion(majorVersion byte) uint32 {
 	if majorVersion >= BlockMajorVersion5 {
 		return difficultyWindow4 + 1
 	}
@@ -556,7 +558,7 @@ func (n *Network) nextDifficultyV3(timestamps []uint64, cumulativeDifficulties [
 }
 
 func (n *Network) nextDifficultyV2(timestamps []uint64, cumulativeDifficulties []uint64) (uint64, error) {
-	// Difficulty calculation v. 2
+	// CumulativeDifficulty calculation v. 2
 	// based on Zawy difficulty algorithm v1.0
 	// next Diff = Avg past N Diff * TargetInterval / Avg past N solve times
 	// as described at https://github.com/monero-project/research-lab/issues/3

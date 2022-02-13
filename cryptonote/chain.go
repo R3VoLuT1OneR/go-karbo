@@ -18,6 +18,8 @@ type BlockChain struct {
 	// Network is current network configurations, must stay immutable
 	Network *config.Network
 
+	Checkpoints config.Checkpoints
+
 	// storage used for saving all the blockchain info
 	storage Storage
 
@@ -41,9 +43,10 @@ type BlockChain struct {
 // NewBlockChain generates basic blockchain object
 func NewBlockChain(network *config.Network, storage Storage, logger *log.Logger) *BlockChain {
 	bc := &BlockChain{
-		Network: network,
-		logger:  logger,
-		storage: storage,
+		Network:     network,
+		Checkpoints: config.NewCheckpoints(logger),
+		logger:      logger,
+		storage:     storage,
 
 		tips: []*Block{},
 	}
@@ -225,12 +228,16 @@ func (bc *BlockChain) AddBlock(block *Block, rawTransactions [][]byte) error {
 		}
 	}
 
-	alreadyGeneratedCoins := bc.getAlreadyGeneratedCoins(prevBlock.Index())
-	lastBlockSizes := bc.GetLastBlocksSizes(prevBlock.Index(), true)
+	prevBlockInfo := bc.storage.getBlockInfoAtIndex(prevBlock.Index())
+	lastBlockSizes := bc.lastBLockSizes(bc.Network.RewardBlockWindow(), prevBlock.Index())
 	blockSizeMedian := utils.MedianSlice(lastBlockSizes)
 
 	expectedReward, emissionChange, err := bc.Network.GetBlockReward(
-		block.MajorVersion, blockSizeMedian, blockSize, alreadyGeneratedCoins, transactionsValidator.cumulativeFee,
+		block.MajorVersion,
+		blockSizeMedian,
+		blockSize,
+		prevBlockInfo.TotalGeneratedCoins,
+		transactionsValidator.cumulativeFee,
 	)
 
 	if err != nil {
@@ -250,8 +257,8 @@ func (bc *BlockChain) AddBlock(block *Block, rawTransactions [][]byte) error {
 		return err
 	}
 
-	if bc.Network.Checkpoints.IsInCheckpointZone(blockIndex) {
-		if err := bc.Network.Checkpoints.CheckBlock(blockIndex, block.Hash()); err != nil {
+	if bc.Checkpoints.IsInCheckpointZone(blockIndex) {
+		if err := bc.Checkpoints.CheckBlock(blockIndex, block.Hash()); err != nil {
 			err := ErrBlockValidationCheckpointBlockHashMismatch
 			logger.Error(err)
 			return err
@@ -264,8 +271,20 @@ func (bc *BlockChain) AddBlock(block *Block, rawTransactions [][]byte) error {
 		}
 	}
 
-	// TODO: Remove
-	logger.Info(emissionChange)
+	info := blockInfo{
+		Index:                      blockIndex,
+		Size:                       blockSize,
+		CumulativeDifficulty:       prevBlockInfo.CumulativeDifficulty + currentDifficulty,
+		TotalGeneratedTransactions: prevBlockInfo.TotalGeneratedTransactions + uint64(len(block.TransactionsHashes)),
+		// TotalGeneratedCoins:        prevBlockInfo.TotalGeneratedCoins + block.BaseTransaction.Outputs[0].Amount,
+		TotalGeneratedCoins: prevBlockInfo.TotalGeneratedCoins + emissionChange,
+	}
+
+	if err := bc.storage.PushBlock(block, &info); err != nil {
+		return err
+	}
+
+	bc.bestTip = block
 
 	return nil
 }
@@ -342,8 +361,8 @@ func (bc *BlockChain) validateBlock(blogger *log.Entry, block *Block, prevBlock 
 	}
 
 	timestampCheckWindow := bc.Network.BlockTimestampCheckWindow(block.MajorVersion)
-	lastTimestamps := bc.lastBlocksTimestamps(timestampCheckWindow, block)
-	if len(lastTimestamps) >= timestampCheckWindow {
+	lastTimestamps := bc.lastBlocksTimestamps(timestampCheckWindow, block, true)
+	if uint32(len(lastTimestamps)) >= timestampCheckWindow {
 		if block.Timestamp < utils.MedianSlice(lastTimestamps) {
 			err := ErrBlockValidationTimestampTooFarInPast
 			blogger.Error(err)
@@ -503,7 +522,7 @@ func (bc *BlockChain) deserializeTransactions(blogger *log.Entry, rt [][]byte) (
 	transactions := make([]Transaction, len(rt))
 	transactionsSize := uint64(0)
 
-	for i, t := range transactions {
+	for i, _ := range transactions {
 		tsSize := uint64(len(rt[i]))
 		tsLogger := blogger.WithFields(log.Fields{
 			"transaction_size":  tsSize,
@@ -517,7 +536,7 @@ func (bc *BlockChain) deserializeTransactions(blogger *log.Entry, rt [][]byte) (
 		}
 
 		r := bytes.NewReader(rt[i])
-		if err := t.Deserialize(r); err != nil {
+		if err := transactions[i].Deserialize(r); err != nil {
 			tsLogger.Error(fmt.Errorf("%s: %w", ErrAddBlockTransactionDeserialization.Error(), err))
 			return nil, 0, ErrAddBlockTransactionDeserialization
 		}
@@ -529,14 +548,18 @@ func (bc *BlockChain) deserializeTransactions(blogger *log.Entry, rt [][]byte) (
 }
 
 // lastBlocksTimestamps fetches the timestamps of the
-func (bc *BlockChain) lastBlocksTimestamps(count int, b *Block) []uint64 {
+func (bc *BlockChain) lastBlocksTimestamps(count uint32, b *Block, addGenesisBlock bool) []uint64 {
 	timestamps := []uint64{}
 	tempBlock := b
 
 	for count > 0 {
+		if tempBlock.Index() == 0 && !addGenesisBlock {
+			break
+		}
+
 		timestamps = append(timestamps, tempBlock.Timestamp)
 
-		if tempBlock.PreviousBlockHash == (crypto.Hash{}) {
+		if tempBlock.Index() == 0 {
 			break
 		}
 
@@ -544,7 +567,24 @@ func (bc *BlockChain) lastBlocksTimestamps(count int, b *Block) []uint64 {
 		count--
 	}
 
-	return timestamps
+	return utils.SliceReverse(timestamps)
+}
+
+func (bc *BlockChain) lastBLockSizes(count uint32, index uint32) []uint64 {
+	sizes := []uint64{}
+
+	tempInfo := bc.storage.getBlockInfoAtIndex(index)
+	for i := uint32(1); i <= count; i++ {
+		if tempInfo == nil {
+			break
+		}
+
+		sizes = append(sizes, tempInfo.Size)
+		tempInfo = bc.storage.getBlockInfoAtIndex(index - i)
+		count--
+	}
+
+	return utils.SliceReverse(sizes)
 }
 
 // IsTransactionSpendTimeUnlocked check
@@ -567,18 +607,6 @@ func (bc *BlockChain) DecomposeAmount(amount uint64, dustThreshold uint64) []uin
 // checkProofOfWork verify block proof of work
 // TODO: Implement
 func (bc *BlockChain) checkProofOfWork(block *Block, difficulty uint64) error {
-	return nil
-}
-
-// getAlreadyGeneratedCoins returns generated coins on specified height
-// TODO: Implement
-func (bc *BlockChain) getAlreadyGeneratedCoins(height uint32) uint64 {
-	return uint64(38146972656250)
-}
-
-// GetLastBlocksSizes returns last block sizes
-// TODO: Implement
-func (bc *BlockChain) GetLastBlocksSizes(height uint32, useGenesis bool) []uint64 {
 	return nil
 }
 
