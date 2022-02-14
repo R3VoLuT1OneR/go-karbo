@@ -1,5 +1,7 @@
 package utils
 
+import "sort"
+
 // SliceIsUniqueUint32 checks if all the values in the slice are unique
 func SliceIsUniqueUint32(s *[]uint32) bool {
 	uniq := map[uint32]bool{}
@@ -13,6 +15,13 @@ func SliceIsUniqueUint32(s *[]uint32) bool {
 	}
 
 	return true
+}
+
+// SliceIsSortedUint32 checks if slice is sorted
+func SliceIsSortedUint32(s *[]uint32) bool {
+	return sort.SliceIsSorted(*s, func(i, j int) bool {
+		return (*s)[i] < (*s)[j]
+	})
 }
 
 func SliceReverse(s []uint64) []uint64 {

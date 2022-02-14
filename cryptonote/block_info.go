@@ -16,6 +16,9 @@ type blockInfo struct {
 	// TotalGeneratedCoins keeps how many coins generated in blockchain including this block
 	TotalGeneratedCoins uint64
 
+	// Timestamp of the block
+	Timestamp uint64
+
 	// Size of the block in bytes
 	Size uint64
 }

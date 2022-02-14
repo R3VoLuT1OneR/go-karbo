@@ -29,7 +29,7 @@ type Storage interface {
 	TopBlock() (*Block, error)
 
 	// PushBlock to the blockchain storage.
-	PushBlock(*Block, *blockInfo) error
+	PushBlock(*Block, *blockInfo, TransactionsDetails) error
 
 	// HaveBlock verifies that block is saved in DB
 	HaveBlock(*crypto.Hash) bool
@@ -64,4 +64,11 @@ type Storage interface {
 
 	// getBlockInfoAtIndex return block info at specified index
 	getBlockInfoAtIndex(index uint32) *blockInfo
+}
+
+// TransactionsDetails used for passing transaction information about block transactions
+type TransactionsDetails struct {
+	transactions []Transaction
+
+	spentKeyImages []crypto.KeyImage
 }

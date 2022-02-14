@@ -5,6 +5,7 @@ package cryptonote
 
 import (
 	"github.com/r3volut1oner/go-karbo/crypto"
+	"github.com/r3volut1oner/go-karbo/utils"
 	"sync"
 )
 
@@ -19,6 +20,10 @@ type memoryStorage struct {
 	// blockInfos keeps block infos for specific index
 	blockInfos map[uint32]*blockInfo
 
+	transactionsIndex map[uint32]*[]Transaction
+
+	spentKeysImagesIndex map[uint32]*[]crypto.KeyImage
+
 	topBlock *Block
 
 	sync.RWMutex
@@ -26,9 +31,11 @@ type memoryStorage struct {
 
 func NewMemoryStorage() Storage {
 	return &memoryStorage{
-		hashIndex:  map[crypto.Hash]*Block{},
-		blockIndex: map[uint32]*Block{},
-		blockInfos: map[uint32]*blockInfo{},
+		hashIndex:            map[crypto.Hash]*Block{},
+		blockIndex:           map[uint32]*Block{},
+		blockInfos:           map[uint32]*blockInfo{},
+		transactionsIndex:    map[uint32]*[]Transaction{},
+		spentKeysImagesIndex: map[uint32]*[]crypto.KeyImage{},
 	}
 }
 
@@ -40,7 +47,7 @@ func (s *memoryStorage) Init(genesisBlock *Block) error {
 		TotalGeneratedCoins:  genesisBlock.BaseTransaction.Outputs[0].Amount,
 	}
 
-	err := s.PushBlock(genesisBlock, &info)
+	err := s.PushBlock(genesisBlock, &info, TransactionsDetails{})
 	return err
 }
 
@@ -58,16 +65,20 @@ func (s *memoryStorage) TopBlock() (*Block, error) {
 	return block, nil
 }
 
-func (s *memoryStorage) PushBlock(block *Block, info *blockInfo) error {
+func (s *memoryStorage) PushBlock(block *Block, info *blockInfo, details TransactionsDetails) error {
 	s.Lock()
-	err := s.appendBlock(block, info)
+	err := s.appendBlock(block, info, details)
 	s.Unlock()
 	return err
 }
 
-func (s *memoryStorage) appendBlock(block *Block, info *blockInfo) error {
+func (s *memoryStorage) appendBlock(block *Block, info *blockInfo, details TransactionsDetails) error {
 	hash := block.Hash()
 	index := block.Index()
+
+	if block.Index() != info.Index {
+		return utils.AssertionError("block info index and block index must be same")
+	}
 
 	if s.haveBlock(hash) {
 		return ErrStorageBlockExists
@@ -80,6 +91,9 @@ func (s *memoryStorage) appendBlock(block *Block, info *blockInfo) error {
 	s.hashIndex[*hash] = block
 	s.blockIndex[index] = block
 	s.blockInfos[index] = info
+
+	s.transactionsIndex[index] = &details.transactions
+	s.spentKeysImagesIndex[index] = &details.spentKeyImages
 
 	if s.topBlock == nil || index > s.topBlock.Index() {
 		s.topBlock = block

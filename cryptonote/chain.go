@@ -276,11 +276,21 @@ func (bc *BlockChain) AddBlock(block *Block, rawTransactions [][]byte) error {
 		Size:                       blockSize,
 		CumulativeDifficulty:       prevBlockInfo.CumulativeDifficulty + currentDifficulty,
 		TotalGeneratedTransactions: prevBlockInfo.TotalGeneratedTransactions + uint64(len(block.TransactionsHashes)),
-		// TotalGeneratedCoins:        prevBlockInfo.TotalGeneratedCoins + block.BaseTransaction.Outputs[0].Amount,
-		TotalGeneratedCoins: prevBlockInfo.TotalGeneratedCoins + emissionChange,
+		TotalGeneratedCoins:        prevBlockInfo.TotalGeneratedCoins + emissionChange,
+		Timestamp:                  block.Timestamp,
 	}
 
-	if err := bc.storage.PushBlock(block, &info); err != nil {
+	transactionsDetails := TransactionsDetails{
+		transactions: transactions,
+	}
+
+	for keyImage, _ := range transactionsValidator.spentKeyImages {
+		transactionsDetails.spentKeyImages = append(transactionsDetails.spentKeyImages, keyImage)
+	}
+
+	// TODO: Add saving of the multisignature details
+
+	if err := bc.storage.PushBlock(block, &info, transactionsDetails); err != nil {
 		return err
 	}
 
@@ -619,6 +629,18 @@ func (bc *BlockChain) IsSpent(image crypto.KeyImage, height uint32) bool {
 // ExtractKeyOutputKeys
 // TODO: Implement
 func (bc *BlockChain) ExtractKeyOutputKeys(amount uint64, height uint32, globalIndexes []uint32) ([]crypto.PublicKey, error) {
+	if len(globalIndexes) == 0 {
+		return nil, utils.AssertionError("globalIndexes must be not empty")
+	}
+
+	if !utils.SliceIsSortedUint32(&globalIndexes) {
+		return nil, utils.AssertionError("globalIndexes must be sorted")
+	}
+
+	if !utils.SliceIsUniqueUint32(&globalIndexes) {
+		return nil, utils.AssertionError("globalIndexes must be unique")
+	}
+
 	return nil, nil
 }
 
