@@ -271,7 +271,7 @@ func (bc *BlockChain) AddBlock(block *Block, rawTransactions [][]byte) error {
 		}
 	}
 
-	info := blockInfo{
+	info := BlockInfo{
 		Index:                      blockIndex,
 		Hash:                       *block.Hash(),
 		CumulativeDifficulty:       prevBlockInfo.CumulativeDifficulty + currentDifficulty,

@@ -29,7 +29,7 @@ type Storage interface {
 	TopBlock() (*Block, error)
 
 	// PushBlock to the blockchain storage.
-	PushBlock(*Block, *blockInfo, TransactionsDetails) error
+	PushBlock(*Block, *BlockInfo, TransactionsDetails) error
 
 	// HaveBlock verifies that block is saved in DB
 	HaveBlock(*crypto.Hash) bool
@@ -63,7 +63,70 @@ type Storage interface {
 	 */
 
 	// getBlockInfoAtIndex return block info at specified index
-	getBlockInfoAtIndex(index uint32) *blockInfo
+	getBlockInfoAtIndex(index uint32) *BlockInfo
+}
+
+// BlockInfo represents additional information about block that is not part of block itself.
+//
+// Planned use this struct for internal use of chain
+type BlockInfo struct {
+	// Index of the block
+	Index uint32
+
+	// Hash of the block
+	Hash crypto.Hash
+
+	// CumulativeDifficulty of the POW for the block
+	CumulativeDifficulty uint64
+
+	// TotalGeneratedTransactions keeps how many transactions in blockchain including in this block
+	TotalGeneratedTransactions uint64
+
+	// TotalGeneratedCoins keeps how many coins generated in blockchain including this block
+	TotalGeneratedCoins uint64
+
+	// Timestamp of the block
+	Timestamp uint64
+
+	// Size of the block in bytes
+	Size uint64
+}
+
+type TransactionInfo struct {
+	// Index of the block
+	BlockIndex uint32
+
+	// Index of the transaction in the block
+	Index uint32
+
+	// Hash of the transaction
+	Hash crypto.Hash
+
+	// UnlockTime of the transaction outputs
+	UnlockTime uint64
+
+	// Outputs of the transaction
+	Outputs []TransactionOutputTarget
+
+	// GlobalIndexes
+	GlobalIndexes []uint32
+
+	// AmountToKeyIndexes global key output indexes spawned in this transaction
+	AmountToKeyIndexes map[uint64][]uint32
+
+	// AmountToMultiIndexes global multisignature output indexes spawned in this transaction
+	AmountToMultiIndexes map[uint64][]uint32
+}
+
+type PackedOutIndex struct {
+	// Index of the block
+	BlockIndex uint32
+
+	// TransactionIndex index of the transaction in block
+	TransactionIndex uint32
+
+	// Index of the output in the transaction
+	Index uint32
 }
 
 type MultisigAmountGlobalOutputIndexPair struct {
