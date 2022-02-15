@@ -66,9 +66,16 @@ type Storage interface {
 	getBlockInfoAtIndex(index uint32) *blockInfo
 }
 
+type MultisigAmountGlobalOutputIndexPair struct {
+	Amount            uint64
+	GlobalOutputIndex uint32
+}
+
 // TransactionsDetails used for passing transaction information about block transactions
 type TransactionsDetails struct {
 	transactions []Transaction
 
 	spentKeyImages []crypto.KeyImage
+
+	spentMultisignatureGlobalIndexes []MultisigAmountGlobalOutputIndexPair
 }

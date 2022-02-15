@@ -285,7 +285,15 @@ func (bc *BlockChain) AddBlock(block *Block, rawTransactions [][]byte) error {
 	}
 
 	for keyImage, _ := range transactionsValidator.spentKeyImages {
-		transactionsDetails.spentKeyImages = append(transactionsDetails.spentKeyImages, keyImage)
+		transactionsDetails.spentKeyImages = append(
+			transactionsDetails.spentKeyImages, keyImage,
+		)
+	}
+
+	for pair, _ := range transactionsValidator.spentMultisignatureGlobalOutputIndexes {
+		transactionsDetails.spentMultisignatureGlobalIndexes = append(
+			transactionsDetails.spentMultisignatureGlobalIndexes, pair,
+		)
 	}
 
 	// TODO: Add saving of the multisignature details

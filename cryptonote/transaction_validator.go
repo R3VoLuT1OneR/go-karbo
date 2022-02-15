@@ -19,8 +19,8 @@ type blockTransactionsValidator struct {
 	// spentKeyImages used for sharing spent key images for block validation
 	spentKeyImages map[crypto.KeyImage]bool
 
-	// spentMultisignatureGlobalIndexes used for sharing spent key images for block validation
-	spentMultisignatureGlobalIndexes map[MultisigAmountIndexPair]bool
+	// spentMultisignatureGlobalOutputIndexes used for sharing spent key images for block validation
+	spentMultisignatureGlobalOutputIndexes map[MultisigAmountGlobalOutputIndexPair]bool
 
 	// cumulativeFee used for sharing spent key images for block validation
 	cumulativeFee uint64
@@ -29,22 +29,17 @@ type blockTransactionsValidator struct {
 	logger *log.Logger
 }
 
-type MultisigAmountIndexPair struct {
-	Amount      uint64
-	OutputIndex uint32
-}
-
 var LImage = crypto.KeyImage(crypto.L)
 var IImage = crypto.KeyImage(crypto.I)
 
 func NewBlockTransactionsValidator(bc *BlockChain, blockIndex uint32, logger *log.Logger) *blockTransactionsValidator {
 	return &blockTransactionsValidator{
-		bc:                               bc,
-		blockIndex:                       blockIndex,
-		spentKeyImages:                   map[crypto.KeyImage]bool{},
-		spentMultisignatureGlobalIndexes: map[MultisigAmountIndexPair]bool{},
-		cumulativeFee:                    uint64(0),
-		logger:                           logger,
+		bc:                                     bc,
+		blockIndex:                             blockIndex,
+		spentKeyImages:                         map[crypto.KeyImage]bool{},
+		spentMultisignatureGlobalOutputIndexes: map[MultisigAmountGlobalOutputIndexPair]bool{},
+		cumulativeFee:                          uint64(0),
+		logger:                                 logger,
 	}
 }
 
@@ -179,14 +174,14 @@ func (validator *blockTransactionsValidator) validateInputs(transaction *Transac
 				"transaction_input_type": "InputMultiSignature",
 			})
 
-			MOPair := MultisigAmountIndexPair{input.Amount, input.OutputIndex}
-			if _, ok := validator.spentMultisignatureGlobalIndexes[MOPair]; ok {
+			MOPair := MultisigAmountGlobalOutputIndexPair{input.Amount, input.OutputIndex}
+			if _, ok := validator.spentMultisignatureGlobalOutputIndexes[MOPair]; ok {
 				err := ErrTransactionInputMultisignatureAlreadySpent
 				logger.Error(err)
 				return 0, err
 			}
 
-			validator.spentMultisignatureGlobalIndexes[MOPair] = true
+			validator.spentMultisignatureGlobalOutputIndexes[MOPair] = true
 
 			output, unlockTime, exists :=
 				validator.bc.IsMultiSignatureOutputExists(input.Amount, input.OutputIndex, validator.blockIndex)

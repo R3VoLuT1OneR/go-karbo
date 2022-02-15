@@ -24,6 +24,8 @@ type memoryStorage struct {
 
 	spentKeysImagesIndex map[uint32]*[]crypto.KeyImage
 
+	spentMultisignatureGlobalIndexesIndex map[uint32]*[]MultisigAmountGlobalOutputIndexPair
+
 	topBlock *Block
 
 	sync.RWMutex
@@ -31,11 +33,12 @@ type memoryStorage struct {
 
 func NewMemoryStorage() Storage {
 	return &memoryStorage{
-		hashIndex:            map[crypto.Hash]*Block{},
-		blockIndex:           map[uint32]*Block{},
-		blockInfos:           map[uint32]*blockInfo{},
-		transactionsIndex:    map[uint32]*[]Transaction{},
-		spentKeysImagesIndex: map[uint32]*[]crypto.KeyImage{},
+		hashIndex:                             map[crypto.Hash]*Block{},
+		blockIndex:                            map[uint32]*Block{},
+		blockInfos:                            map[uint32]*blockInfo{},
+		transactionsIndex:                     map[uint32]*[]Transaction{},
+		spentKeysImagesIndex:                  map[uint32]*[]crypto.KeyImage{},
+		spentMultisignatureGlobalIndexesIndex: map[uint32]*[]MultisigAmountGlobalOutputIndexPair{},
 	}
 }
 
@@ -94,6 +97,7 @@ func (s *memoryStorage) appendBlock(block *Block, info *blockInfo, details Trans
 
 	s.transactionsIndex[index] = &details.transactions
 	s.spentKeysImagesIndex[index] = &details.spentKeyImages
+	s.spentMultisignatureGlobalIndexesIndex[index] = &details.spentMultisignatureGlobalIndexes
 
 	if s.topBlock == nil || index > s.topBlock.Index() {
 		s.topBlock = block
