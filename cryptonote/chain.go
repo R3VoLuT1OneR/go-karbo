@@ -273,11 +273,12 @@ func (bc *BlockChain) AddBlock(block *Block, rawTransactions [][]byte) error {
 
 	info := blockInfo{
 		Index:                      blockIndex,
-		Size:                       blockSize,
+		Hash:                       *block.Hash(),
 		CumulativeDifficulty:       prevBlockInfo.CumulativeDifficulty + currentDifficulty,
 		TotalGeneratedTransactions: prevBlockInfo.TotalGeneratedTransactions + uint64(len(block.TransactionsHashes)),
 		TotalGeneratedCoins:        prevBlockInfo.TotalGeneratedCoins + emissionChange,
 		Timestamp:                  block.Timestamp,
+		Size:                       blockSize,
 	}
 
 	transactionsDetails := TransactionsDetails{

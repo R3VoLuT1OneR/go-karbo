@@ -11,14 +11,13 @@ import (
 
 type memoryStorage struct {
 
-	// hashIndex keeps the block index for specific hash
-	hashIndex map[crypto.Hash]*Block
-
 	// blockIndex keeps block hash for specific index
 	blockIndex map[uint32]*Block
 
-	// blockInfos keeps block infos for specific index
-	blockInfos map[uint32]*blockInfo
+	// blockInfosIndex keeps block infos for specific index
+	blockInfosIndex map[uint32]*blockInfo
+
+	blockInfosHashIndex map[crypto.Hash]*blockInfo
 
 	transactionsIndex map[uint32]*[]Transaction
 
@@ -33,9 +32,8 @@ type memoryStorage struct {
 
 func NewMemoryStorage() Storage {
 	return &memoryStorage{
-		hashIndex:                             map[crypto.Hash]*Block{},
 		blockIndex:                            map[uint32]*Block{},
-		blockInfos:                            map[uint32]*blockInfo{},
+		blockInfosIndex:                       map[uint32]*blockInfo{},
 		transactionsIndex:                     map[uint32]*[]Transaction{},
 		spentKeysImagesIndex:                  map[uint32]*[]crypto.KeyImage{},
 		spentMultisignatureGlobalIndexesIndex: map[uint32]*[]MultisigAmountGlobalOutputIndexPair{},
@@ -83,6 +81,10 @@ func (s *memoryStorage) appendBlock(block *Block, info *blockInfo, details Trans
 		return utils.AssertionError("block info index and block index must be same")
 	}
 
+	if *block.Hash() != info.Hash {
+		return utils.AssertionError("block info hash and block hash must be same")
+	}
+
 	if s.haveBlock(hash) {
 		return ErrStorageBlockExists
 	}
@@ -91,9 +93,9 @@ func (s *memoryStorage) appendBlock(block *Block, info *blockInfo, details Trans
 		return ErrStorageBlockExists
 	}
 
-	s.hashIndex[*hash] = block
 	s.blockIndex[index] = block
-	s.blockInfos[index] = info
+	s.blockInfosIndex[index] = info
+	s.blockInfosHashIndex[*hash] = info
 
 	s.transactionsIndex[index] = &details.transactions
 	s.spentKeysImagesIndex[index] = &details.spentKeyImages
@@ -115,13 +117,18 @@ func (s *memoryStorage) HaveBlock(hash *crypto.Hash) bool {
 
 func (s *memoryStorage) GetBlock(hash *crypto.Hash) *Block {
 	s.RLock()
-	block := s.hashIndex[*hash]
-	s.RUnlock()
-	return block
+	defer s.RUnlock()
+
+	if blockInfo, ok := s.blockInfosHashIndex[*hash]; ok {
+		block := s.blockIndex[blockInfo.Index]
+		return block
+	}
+
+	return nil
 }
 
 func (s *memoryStorage) haveBlock(hash *crypto.Hash) bool {
-	if _, ok := s.hashIndex[*hash]; ok {
+	if _, ok := s.blockInfosHashIndex[*hash]; ok {
 		return true
 	}
 
@@ -141,7 +148,7 @@ func (s *memoryStorage) HashAtIndex(index uint32) (*crypto.Hash, error) {
 
 func (s *memoryStorage) getBlockInfoAtIndex(index uint32) *blockInfo {
 	s.RLock()
-	info := s.blockInfos[index]
+	info := s.blockInfosIndex[index]
 	s.RUnlock()
 	return info
 }
